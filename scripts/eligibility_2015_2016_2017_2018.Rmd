@@ -1,0 +1,2437 @@
+---
+title: "Dentistry Claims RA Project"
+subtitle: "Pregnancy Eligibility Data"
+author: "Spiro Stilianoudakis"
+date: "May 10, 2019"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in FIPs table
+
+```{r}
+fipstab <- read.csv("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/fips_to_dmas_region.csv", header = FALSE, sep=",", colClasses = c("character", "character", "character"))
+fipstab <- fipstab[,c(1,3)]
+```
+
+
+# Read in 2015 Pregnancy Data
+
+## Eligibility
+
+### FFS
+
+```{r}
+ffs2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2015_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(ffs2015)
+#33845   134
+
+#joining fips data
+ffs2015 <- left_join(ffs2015, fipstab, by=c("R_FIPS" = "V1"))
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(ffs2015$srecip)) #33845
+length(which(is.na(ffs2015$srecip))) #0
+##using CASE_ID
+length(unique(ffs2015$CASE_ID)) #33841
+ffs2015$CASE_ID[which(duplicated(ffs2015$CASE_ID))] #683003758001 650130803002 179038061003 790033074001
+length(which(is.na(ffs2015$CASE_ID))) #0
+
+#investigate repeats in caseid variable
+caseids <- ffs2015$CASE_ID[which(duplicated(ffs2015$CASE_ID))]
+ffs2015[which(ffs2015$CASE_ID %in% caseids), 1:35]
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("ffs_beg",names(ffs2015))) #7
+
+#end dates
+length(grep("ffs_end",names(ffs2015))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(ffs2015$ffs_beg5)) #none
+table(is.na(ffs2015$ffs_beg6)) #none
+table(is.na(ffs2015$ffs_beg7)) #none
+
+table(is.na(ffs2015$ffs_end5)) #none
+table(is.na(ffs2015$ffs_end6)) #none
+table(is.na(ffs2015$ffs_end7)) #none
+
+#checking if dates are before as.Date("2014-07-01") or after as.Date("2014-07-01")
+sapply(ffs2015[,grep(paste(c("ffs_beg", "ffs_end"),
+                           collapse = "|"), names(ffs2015))], 
+       function(x){length(which((x < as.Date("2014-07-01")) | (x > as.Date("2015-06-30"))))})
+#ffs_beg1 ffs_beg2 ffs_beg3 ffs_beg4 ffs_end1 ffs_end2 ffs_end3 ffs_end4 ffs_beg5 ffs_beg6 ffs_end5 ffs_beg7 ffs_end6 ffs_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0 
+```
+
+##### Data Cleaning
+
+```{r}
+#recode demographics
+ffs2015 = ffs2015 %>% 
+  select(srecip, ffs_beg1, ffs_beg2, ffs_beg3, ffs_beg4, ffs_end1, ffs_end2, ffs_end3, ffs_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_ffs = V3,
+         BIRTH_ffs = BIRTH,
+         CIT_STAT_ffs = CIT_STAT,
+         SEX_ffs = SEX,
+         RACE_ffs = RACE
+         )
+
+#Date of earliest enrollment
+ffs2015$DOEE_ffs <- apply(ffs2015[,grep("_beg", names(ffs2015))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+ffs2015$Age_at_earliest_enrollment_ffs <- round(as.numeric((as.Date(ffs2015$DOEE_ffs) - as.Date(ffs2015$BIRTH_ffs))/365.2425),1)
+summary(ffs2015$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  14.60   23.90   27.00   28.02   31.10  114.50 
+#remove invalid values
+ffs2015 <- ffs2015[which(ffs2015$Age_at_earliest_enrollment_ffs >= 21 & ffs2015$Age_at_earliest_enrollment_ffs < 100),]
+summary(ffs2015$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   23.90   27.00   28.02   31.10   55.50
+
+dim(ffs2015)
+#33726    16
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(ffs2015$RACE_ffs, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#18586 12574   165    87   270   188     5    10   123     1   333   100   221   143    23     7    65   651     7   167 
+
+ffs2015$RACE_ffs[ffs2015$RACE_ffs=="1"] <- "White"
+ffs2015$RACE_ffs[ffs2015$RACE_ffs=="2"] <- "Black"
+ffs2015$RACE_ffs[ffs2015$RACE_ffs=="3" | ffs2015$RACE_ffs=="6"] <- "Native American"
+ffs2015$RACE_ffs[ffs2015$RACE_ffs=="4"] <- "Asian"
+ffs2015$RACE_ffs[ffs2015$RACE_ffs=="5"] <- "Hispanic"
+ffs2015$RACE_ffs[ffs2015$RACE_ffs %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+ffs2015$RACE_ffs[which(ffs2015$RACE_ffs=="Native American" | ffs2015$RACE_ffs=="Asian")] <- "Native American/Asian"
+table(ffs2015$RACE_ffs, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                12574                   270                   440                  1856                 18586 
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(ffs2015$CIT_STAT_ffs, exclude = "ifany")
+#    A     C     D     E     I     N     P     R     V  <NA> 
+#   62 29934     1    11   701   592  2206   204    12     3  
+ffs2015$CIT_STAT_ffs[!(ffs2015$CIT_STAT_ffs %in% c("C", "N")) & !(is.na(ffs2015$CIT_STAT_ffs))] <- "Non-US citizen"
+ffs2015$CIT_STAT_ffs[ffs2015$CIT_STAT_ffs %in% c("C", "N")] <- "US (or naturalized) citizen"
+ffs2015$CIT_STAT_ffs[is.na(ffs2015$CIT_STAT_ffs)] <- "Missing"
+table(ffs2015$CIT_STAT_ffs, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          3                        3197                       30526 
+
+#sex
+table(ffs2015$SEX_ffs, exclude = "ifany")
+#    F 
+#33726
+
+#rfips
+table(is.na(ffs2015$R_FIPS_ffs))
+
+#region
+table(ffs2015$Region_ffs, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   8390                    4184                    7582                    3340                    1987                    8243 
+```
+
+
+### MCO
+
+```{r}
+mco2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data//sfy2015_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2015_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(mco2015)
+#23345   144
+
+#joining fips data
+mco2015 <- left_join(mco2015, fipstab, by=c("R_FIPS" = "V1"))
+
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(mco2015$srecip)) #23345
+length(which(is.na(mco2015$srecip))) #0
+
+##using mco_id
+length(grep("mco_id", names(mco2015))) #5
+#"mco_id1" "mco_id2" "mco_id3" "mco_id4" "mco_id5"
+
+##investigating mco_id
+lapply(mco2015[,grep("mco_id", names(mco2015))], function(x){c(length(unique(x)),
+                                                               length(which(duplicated(x))),
+                                                               length(which(is.na(x))))})
+#$`mco_id1`
+#[1]     9 23336     0
+#
+#$mco_id2
+#[1]    10 23335 18513
+#
+#$mco_id3
+#[1]     8 23337 22998
+#
+#$mco_id4
+#[1]     4 23341 23331
+#
+#$mco_id5
+#[1]     1 23344 23345
+
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("mco_beg",names(mco2015))) #7
+
+#end dates
+length(grep("mco_end",names(mco2015))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(mco2015$mco_beg5)) #none
+table(is.na(mco2015$mco_beg6)) #none
+table(is.na(mco2015$mco_beg7)) #none
+
+table(is.na(mco2015$mco_end5)) #none
+table(is.na(mco2015$mco_end6)) #none
+table(is.na(mco2015$mco_end7)) #none
+
+sapply(mco2015[,grep(paste(c("mco_beg", "mco_end"),
+                           collapse = "|"), names(mco2015))], 
+       function(x){length(which((x < as.Date("2014-07-01")) | (x > as.Date("2015-06-30"))))})
+#mco_beg1 mco_beg2 mco_beg3 mco_beg4 mco_end1 mco_end2 mco_end3 mco_end4 mco_beg5 mco_beg6 mco_end5 mco_beg7 mco_end6 mco_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0
+```
+
+##### Data Cleaning
+
+```{r}
+#rename specific demo vars names
+mco2015 = mco2015 %>% 
+  select(srecip, mco_beg1, mco_beg2, mco_beg3, mco_beg4, mco_end1, mco_end2, mco_end3, mco_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_mco = V3,
+         BIRTH_mco = BIRTH,
+         CIT_STAT_mco = CIT_STAT,
+         SEX_mco = SEX,
+         RACE_mco = RACE)
+
+#Date of earliest enrollment
+mco2015$DOEE_mco <- apply(mco2015[,grep("_beg", names(mco2015))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+mco2015$Age_at_earliest_enrollment_mco <- round(as.numeric((as.Date(mco2015$DOEE_mco) - as.Date(mco2015$BIRTH_mco))/365.2425),1)
+summary(mco2015$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   16.6    24.0    27.1    28.1    31.1   114.8 
+
+mco2015 <- mco2015[which(mco2015$Age_at_earliest_enrollment_mco >= 21 & mco2015$Age_at_earliest_enrollment_mco < 100),]
+summary(mco2015$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.10   27.10   28.08   31.10   54.90 
+
+dim(mco2015)
+#23286    16	
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(mco2015$RACE_mco, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     B     C     D     F     G     J     K     O     S     V 
+#12807  8833   111    53   146   124     3     6    68   204    78   148    94    17     5    42   433     6   108  
+
+mco2015$RACE_mco[mco2015$RACE_mco=="1"] <- "White"
+mco2015$RACE_mco[mco2015$RACE_mco=="2"] <- "Black"
+mco2015$RACE_mco[mco2015$RACE_mco=="3" | mco2015$RACE_mco=="6"] <- "Native American"
+mco2015$RACE_mco[mco2015$RACE_mco=="4"] <- "Asian"
+mco2015$RACE_mco[mco2015$RACE_mco=="5"] <- "Hispanic"
+mco2015$RACE_mco[mco2015$RACE_mco %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+mco2015$RACE_mco[which(mco2015$RACE_mco=="Native American" | mco2015$RACE_mco=="Asian")] <- "Native American/Asian"
+table(mco2015$RACE_mco, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                 8833                   146                   288                  1212                 12807 
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(mco2015$CIT_STAT_mco, exclude = "ifany")
+#    A     C     E     I     N     P     R     V  <NA> 
+#   30 20929     3   442   378  1355   141     7     1 
+mco2015$CIT_STAT_mco[!(mco2015$CIT_STAT_mco %in% c("C", "N")) & !(is.na(mco2015$CIT_STAT_mco))] <- "Non-US citizen"
+mco2015$CIT_STAT_mco[mco2015$CIT_STAT_mco %in% c("C", "N")] <- "US (or naturalized) citizen"
+mco2015$CIT_STAT_mco[is.na(mco2015$CIT_STAT_mco)] <- "Missing"
+table(mco2015$CIT_STAT_mco, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          1                        1978                       21307
+
+#sex
+table(mco2015$SEX_mco, exclude = "ifany")
+#    F 
+#23286 
+
+#rfips
+table(is.na(mco2015$R_FIPS_mco))
+
+#region
+table(mco2015$Region_mco, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   5793                    2778                    5040                    2289                    1432                    5954
+```
+
+
+### Joining ffs and mco 2015
+
+```{r}
+#total number of patients in common
+length(intersect(ffs2015$srecip, mco2015$srecip)) #23028
+
+
+#ffsvars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "ffs_beg", "ffs_end"), collapse = "|"),names(ffs2015)))
+#mcovars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "mco_beg", "mco_end"), collapse = "|"),names(mco2015)))
+ffs_mco_2015 <- full_join(mco2015,#[,mcovars],
+                          ffs2015,#[,ffsvars],
+                          by = "srecip")
+
+dim(ffs_mco_2015)
+#33984    31
+
+#sort by srecip
+ffs_mco_2015 <- ffs_mco_2015[order(ffs_mco_2015$srecip),]
+
+#Checking demographics between mco and ffs
+table(ffs_mco_2015$CIT_STAT_mco, ffs_mco_2015$CIT_STAT_ffs, exclude="ifany")
+#                              Missing Non-US citizen US (or naturalized) citizen  <NA>
+#  Missing                           1              0                           0     0
+#  Non-US citizen                    0           1975                           0     3
+#  US (or naturalized) citizen       0              0                       21052   255
+#  <NA>                              2           1222                        9474     0
+table(ffs_mco_2015$RACE_mco, ffs_mco_2015$RACE_ffs, exclude="ifany")
+#                        Black Hispanic Native American/Asian Other White  <NA>
+#  Black                  8719        0                     0     0     0   114
+#  Hispanic                  0      146                     0     0     0     0
+#  Native American/Asian     0        0                   288     0     0     0
+#  Other                     0        0                     0  1206     0     6
+#  White                     0        0                     0     0 12669   138
+#  <NA>                   3855      124                   152   650  5917     0
+
+
+### Creating unified demographic variables
+
+
+
+#Region
+ffs_mco_2015$Region_2015 <- NA
+
+ffs_mco_2015$Region_2015[is.na(ffs_mco_2015$Region_mco) & is.na(ffs_mco_2015$Region_ffs)] <- NA
+ffs_mco_2015$Region_2015[is.na(ffs_mco_2015$Region_mco) & !(is.na(ffs_mco_2015$Region_ffs))] <- ffs_mco_2015$Region_ffs[is.na(ffs_mco_2015$Region_mco) & !(is.na(ffs_mco_2015$Region_ffs))]
+ffs_mco_2015$Region_2015[!(is.na(ffs_mco_2015$Region_mco)) & is.na(ffs_mco_2015$Region_ffs)] <- ffs_mco_2015$Region_mco[!(is.na(ffs_mco_2015$Region_mco)) & is.na(ffs_mco_2015$Region_ffs)]
+ffs_mco_2015$Region_2015[!(is.na(ffs_mco_2015$Region_mco)) & !(is.na(ffs_mco_2015$Region_ffs))] <- ffs_mco_2015$Region_mco[!(is.na(ffs_mco_2015$Region_mco)) & !(is.na(ffs_mco_2015$Region_ffs))]
+
+table(ffs_mco_2015$Region_2015, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   8452                    4217                    7621                    3368                    2006                    8320 
+
+#Citizenship
+ffs_mco_2015$Citizen_Status_2015 <- NA
+
+ffs_mco_2015$Citizen_Status_2015[is.na(ffs_mco_2015$CIT_STAT_mco) & is.na(ffs_mco_2015$CIT_STAT_ffs)] <- NA
+ffs_mco_2015$Citizen_Status_2015[is.na(ffs_mco_2015$CIT_STAT_mco) & !(is.na(ffs_mco_2015$CIT_STAT_ffs))] <- ffs_mco_2015$CIT_STAT_ffs[is.na(ffs_mco_2015$CIT_STAT_mco) & !(is.na(ffs_mco_2015$CIT_STAT_ffs))]
+ffs_mco_2015$Citizen_Status_2015[!(is.na(ffs_mco_2015$CIT_STAT_mco)) & is.na(ffs_mco_2015$CIT_STAT_ffs)] <- ffs_mco_2015$CIT_STAT_mco[!(is.na(ffs_mco_2015$CIT_STAT_mco)) & is.na(ffs_mco_2015$CIT_STAT_ffs)]
+ffs_mco_2015$Citizen_Status_2015[!(is.na(ffs_mco_2015$CIT_STAT_mco)) & !(is.na(ffs_mco_2015$CIT_STAT_ffs))] <- ffs_mco_2015$CIT_STAT_mco[!(is.na(ffs_mco_2015$CIT_STAT_mco)) & !(is.na(ffs_mco_2015$CIT_STAT_ffs))]
+
+table(ffs_mco_2015$Citizen_Status_2015, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          3                        3200                       30781 
+
+#Race
+ffs_mco_2015$Race_2015 <- NA
+
+ffs_mco_2015$Race_2015[is.na(ffs_mco_2015$RACE_mco) & is.na(ffs_mco_2015$RACE_ffs)] <- NA
+ffs_mco_2015$Race_2015[is.na(ffs_mco_2015$RACE_mco) & !(is.na(ffs_mco_2015$RACE_ffs))] <- ffs_mco_2015$RACE_ffs[is.na(ffs_mco_2015$RACE_mco) & !(is.na(ffs_mco_2015$RACE_ffs))]
+ffs_mco_2015$Race_2015[!(is.na(ffs_mco_2015$RACE_mco)) & is.na(ffs_mco_2015$RACE_ffs)] <- ffs_mco_2015$RACE_mco[!(is.na(ffs_mco_2015$RACE_mco)) & is.na(ffs_mco_2015$RACE_ffs)]
+ffs_mco_2015$Race_2015[!(is.na(ffs_mco_2015$RACE_mco)) & !(is.na(ffs_mco_2015$RACE_ffs))] <- ffs_mco_2015$RACE_mco[!(is.na(ffs_mco_2015$RACE_mco)) & !(is.na(ffs_mco_2015$RACE_ffs))]
+
+table(ffs_mco_2015$Race_2015, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                12688                   270                   440                  1862                 18724
+
+#DOB
+ffs_mco_2015$DOB_2015 <- as.Date(NA)
+
+ffs_mco_2015$DOB_2015[is.na(ffs_mco_2015$BIRTH_mco) & is.na(ffs_mco_2015$BIRTH_ffs)] <- NA
+ffs_mco_2015$DOB_2015[is.na(ffs_mco_2015$BIRTH_mco) & !(is.na(ffs_mco_2015$BIRTH_ffs))] <- as.Date(ffs_mco_2015$BIRTH_ffs)[is.na(ffs_mco_2015$BIRTH_mco) & !(is.na(ffs_mco_2015$BIRTH_ffs))]
+ffs_mco_2015$DOB_2015[!(is.na(ffs_mco_2015$BIRTH_mco)) & is.na(ffs_mco_2015$BIRTH_ffs)] <- as.Date(ffs_mco_2015$BIRTH_mco)[!(is.na(ffs_mco_2015$BIRTH_mco)) & is.na(ffs_mco_2015$BIRTH_ffs)]
+ffs_mco_2015$DOB_2015[!(is.na(ffs_mco_2015$BIRTH_mco)) & !(is.na(ffs_mco_2015$BIRTH_ffs))] <- as.Date(ffs_mco_2015$BIRTH_mco)[!(is.na(ffs_mco_2015$BIRTH_mco)) & !(is.na(ffs_mco_2015$BIRTH_ffs))]
+
+#Age
+ffs_mco_2015$Age_at_earliest_enrollment_2015 <- NA
+ffs_mco_2015$Age_at_earliest_enrollment_2015[is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs) & is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco)] <- NA
+ffs_mco_2015$Age_at_earliest_enrollment_2015[is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco))] <- ffs_mco_2015$Age_at_earliest_enrollment_mco[is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco))]
+ffs_mco_2015$Age_at_earliest_enrollment_2015[!(is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco)] <- ffs_mco_2015$Age_at_earliest_enrollment_ffs[!(is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco)]
+ffs_mco_2015$Age_at_earliest_enrollment_2015[!(is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco))] <- apply(ffs_mco_2015[!(is.na(ffs_mco_2015$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2015$Age_at_earliest_enrollment_mco)),c("Age_at_earliest_enrollment_ffs", "Age_at_earliest_enrollment_mco")],1,min)
+
+summary(ffs_mco_2015$Age_at_earliest_enrollment_2015)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   21.0    23.9    27.0    28.0    31.1    55.3 
+```
+
+# Read in 2016 Pregnancy Data
+
+## Eligibility
+
+### FFS
+
+```{r}
+ffs2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2016_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(ffs2016)
+#37904   134
+
+#joining fips data
+ffs2016 <- left_join(ffs2016, fipstab, by=c("R_FIPS" = "V1"))
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(ffs2016$srecip)) #37904
+length(which(is.na(ffs2016$srecip))) #0
+##using CASE_ID
+length(unique(ffs2016$CASE_ID)) #37900
+ffs2016$CASE_ID[which(duplicated(ffs2016$CASE_ID))] #710384242003 770103178002  87077973000 790033074001
+length(which(is.na(ffs2016$CASE_ID))) #0
+
+#investigate repeats in caseid variable
+caseids <- ffs2016$CASE_ID[which(duplicated(ffs2016$CASE_ID))]
+ffs2016[which(ffs2016$CASE_ID %in% caseids), 1:35]
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("ffs_beg",names(ffs2016))) #7
+
+#end dates
+length(grep("ffs_end",names(ffs2016))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(ffs2016$ffs_beg5)) #none
+table(is.na(ffs2016$ffs_beg6)) #none
+table(is.na(ffs2016$ffs_beg7)) #none
+
+table(is.na(ffs2016$ffs_end5)) #none
+table(is.na(ffs2016$ffs_end6)) #none
+table(is.na(ffs2016$ffs_end7)) #none
+
+#checking if dates are before as.Date("2014-07-01") or after as.Date("2014-07-01")
+sapply(ffs2016[,grep(paste(c("ffs_beg", "ffs_end"),
+                           collapse = "|"), names(ffs2016))], 
+       function(x){length(which((x < as.Date("2015-07-01")) | (x > as.Date("2016-06-30"))))})
+#ffs_beg1 ffs_beg2 ffs_beg3 ffs_beg4 ffs_end1 ffs_end2 ffs_end3 ffs_end4 ffs_beg5 ffs_beg6 ffs_end5 ffs_beg7 ffs_end6 ffs_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0 
+```
+
+##### Data Cleaning
+
+```{r}
+#recode demographics
+ffs2016 = ffs2016 %>% 
+  select(srecip, ffs_beg1, ffs_beg2, ffs_beg3, ffs_beg4, ffs_end1, ffs_end2, ffs_end3, ffs_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_ffs = V3,
+         BIRTH_ffs = BIRTH,
+         CIT_STAT_ffs = CIT_STAT,
+         SEX_ffs = SEX,
+         RACE_ffs = RACE)
+		 
+#Date of earliest enrollment
+ffs2016$DOEE_ffs <- apply(ffs2016[,grep("_beg", names(ffs2016))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+ffs2016$Age_at_earliest_enrollment_ffs <- round(as.numeric((as.Date(ffs2016$DOEE_ffs) - as.Date(ffs2016$BIRTH_ffs))/365.2425),1)
+summary(ffs2016$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   14.1    24.1    27.1    28.1    31.2   115.5 
+
+#remove invalid values
+ffs2016 <- ffs2016[which(ffs2016$Age_at_earliest_enrollment_ffs >= 21 & ffs2016$Age_at_earliest_enrollment_ffs < 100),]
+summary(ffs2016$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.10   27.10   28.13   31.20   55.80 
+
+dim(ffs2016)
+#37701    16
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(ffs2016$RACE_ffs, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#20902 13997   225    43   129   204     2     2    56     1   458   121   242   141    17    10    86   865    11   189 
+
+ffs2016$RACE_ffs[ffs2016$RACE_ffs=="1"] <- "White"
+ffs2016$RACE_ffs[ffs2016$RACE_ffs=="2"] <- "Black"
+ffs2016$RACE_ffs[ffs2016$RACE_ffs=="3" | ffs2016$RACE_ffs=="6"] <- "Native American"
+ffs2016$RACE_ffs[ffs2016$RACE_ffs=="4"] <- "Asian"
+ffs2016$RACE_ffs[ffs2016$RACE_ffs=="5"] <- "Hispanic"
+ffs2016$RACE_ffs[ffs2016$RACE_ffs %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+ffs2016$RACE_ffs[which(ffs2016$RACE_ffs=="Native American" | ffs2016$RACE_ffs=="Asian")] <- "Native American/Asian"
+table(ffs2016$RACE_ffs, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                13997                   129                   472                  2201                 20902 
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(ffs2016$CIT_STAT_ffs, exclude = "ifany")
+#    A     C     E     I     N     P     R     V  <NA> 
+#   65 33395     8  1707   619  1662   237     6     2 
+ffs2016$CIT_STAT_ffs[!(ffs2016$CIT_STAT_ffs %in% c("C", "N")) & !(is.na(ffs2016$CIT_STAT_ffs))] <- "Non-US citizen"
+ffs2016$CIT_STAT_ffs[ffs2016$CIT_STAT_ffs %in% c("C", "N")] <- "US (or naturalized) citizen"
+ffs2016$CIT_STAT_ffs[is.na(ffs2016$CIT_STAT_ffs)] <- "Missing"
+table(ffs2016$CIT_STAT_ffs, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          2                        3685                       34014 
+
+#sex
+table(ffs2016$SEX_ffs, exclude = "ifany")
+#    F 
+#37701    
+
+#rfips
+table(is.na(ffs2016$R_FIPS_ffs))
+
+#region
+table(ffs2015$Region_ffs, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   8390                    4184                    7582                    3340                    1987                    8243 
+```
+
+### MCO
+
+```{r}
+mco2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data//sfy2016_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2016_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(mco2016)
+#26854   144
+
+#joining fips data
+mco2016 <- left_join(mco2016, fipstab, by=c("R_FIPS" = "V1"))
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(mco2016$srecip)) #26854
+length(which(is.na(mco2016$srecip))) #0
+
+##using mco_id
+length(grep("mco_id", names(mco2016))) #5
+#"mco_id1" "mco_id2" "mco_id3" "mco_id4" "mco_id5"
+
+##investigating mco_id
+lapply(mco2016[,grep("mco_id", names(mco2016))], function(x){c(length(unique(x)),
+                                                               length(which(duplicated(x))),
+                                                               length(which(is.na(x))))})
+#$`mco_id1`
+#[1]     6 26848     0
+#
+#$mco_id2
+#[1]     7 26847 22631
+#
+#$mco_id3
+#[1]     7 26847 26738
+#
+#$mco_id4
+#[1]     2 26852 26853
+#
+#$mco_id5
+#[1]     1 26853 26854
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("mco_beg",names(mco2016))) #7
+
+#end dates
+length(grep("mco_end",names(mco2016))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(mco2016$mco_beg5)) #none
+table(is.na(mco2016$mco_beg6)) #none
+table(is.na(mco2016$mco_beg7)) #none
+
+table(is.na(mco2016$mco_end5)) #none
+table(is.na(mco2016$mco_end6)) #none
+table(is.na(mco2016$mco_end7)) #none
+
+sapply(mco2016[,grep(paste(c("mco_beg", "mco_end"),
+                           collapse = "|"), names(mco2016))], 
+       function(x){length(which((x < as.Date("2015-07-01")) | (x > as.Date("2016-06-30"))))})
+#mco_beg1 mco_beg2 mco_beg3 mco_beg4 mco_end1 mco_end2 mco_end3 mco_end4 mco_beg5 mco_beg6 mco_end5 mco_beg7 mco_end6 mco_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0
+```
+
+##### Data Cleaning
+
+```{r}
+#rename specific demo vars names
+mco2016 = mco2016 %>% 
+  select(srecip, mco_beg1, mco_beg2, mco_beg3, mco_beg4, mco_end1, mco_end2, mco_end3, mco_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_mco = V3,
+         BIRTH_mco = BIRTH,
+         CIT_STAT_mco = CIT_STAT,
+         SEX_mco = SEX,
+         RACE_mco = RACE)
+
+#Date of earliest enrollment
+mco2016$DOEE_mco <- apply(mco2016[,grep("_beg", names(mco2016))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+mco2016$Age_at_earliest_enrollment_mco <- round(as.numeric((as.Date(mco2016$DOEE_mco) - as.Date(mco2016$BIRTH_mco))/365.2425),1)
+summary(mco2016$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   14.3    24.2    27.2    28.2    31.3   115.9 
+#remove invalid values
+mco2016 <- mco2016[which(mco2016$Age_at_earliest_enrollment_mco >= 21 & mco2016$Age_at_earliest_enrollment_mco < 100),]
+summary(mco2016$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.20   27.30   28.22   31.30   55.80 
+
+dim(mco2016)
+#26710    16	
+		 
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(mco2016$RACE_mco, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#14650 10121   159    28    86   152     2     1    43     1   306    86   164    92    11     5    60   604     7   132
+
+mco2016$RACE_mco[mco2016$RACE_mco=="1"] <- "White"
+mco2016$RACE_mco[mco2016$RACE_mco=="2"] <- "Black"
+mco2016$RACE_mco[mco2016$RACE_mco=="3" | mco2016$RACE_mco=="6"] <- "Native American"
+mco2016$RACE_mco[mco2016$RACE_mco=="4"] <- "Asian"
+mco2016$RACE_mco[mco2016$RACE_mco=="5"] <- "Hispanic"
+mco2016$RACE_mco[mco2016$RACE_mco %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+mco2016$RACE_mco[which(mco2016$RACE_mco=="Native American" | mco2016$RACE_mco=="Asian")] <- "Native American/Asian"
+table(mco2016$RACE_mco, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                10121                    86                   339                  1514                 14650 
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(mco2016$CIT_STAT_mco, exclude = "ifany")
+#    A     C     E     I     N     P     R     V  <NA>
+#   32 23911     4  1007   442  1259   190     1     1 
+mco2016$CIT_STAT_mco[!(mco2016$CIT_STAT_mco %in% c("C", "N")) & !(is.na(mco2016$CIT_STAT_mco))] <- "Non-US citizen"
+mco2016$CIT_STAT_mco[mco2016$CIT_STAT_mco %in% c("C", "N")] <- "US (or naturalized) citizen"
+mco2016$CIT_STAT_mco[is.na(mco2016$CIT_STAT_mco)] <- "Missing"
+table(mco2016$CIT_STAT_mco, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          1                        2480                       24229 
+
+
+#sex
+table(mco2016$SEX_mco, exclude = "ifany")
+#    F 
+#26710 
+
+#rfips
+table(is.na(mco2016$R_FIPS_mco))
+
+#region
+table(mco2016$Region_mco, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   6731                    3162                    5949                    2622                    1586                    6660
+```
+
+### Joining ffs and mco 2016
+
+```{r}
+#total number of patients in common
+length(intersect(ffs2016$srecip, mco2016$srecip)) #26556
+
+
+#ffsvars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "ffs_beg", "ffs_end"), collapse = "|"),names(ffs2016)))
+#mcovars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "mco_beg", "mco_end"), collapse = "|"),names(mco2016)))
+ffs_mco_2016 <- full_join(mco2016,#[,mcovars],
+                          ffs2016,#[,ffsvars],
+                          by = "srecip")
+
+dim(ffs_mco_2016)
+#37855    31
+
+#sort by srecip
+ffs_mco_2016 <- ffs_mco_2016[order(ffs_mco_2016$srecip),]
+
+#Checking demographics between mco and ffs
+table(ffs_mco_2016$CIT_STAT_mco, ffs_mco_2016$CIT_STAT_ffs, exclude="ifany")
+#                              Missing Non-US citizen US (or naturalized) citizen  <NA>
+#  Missing                           1              0                           0     0
+#  Non-US citizen                    0           2478                           0     2
+#  US (or naturalized) citizen       0              0                       24077   152
+#  <NA>                              1           1207                        9937     0
+table(ffs_mco_2016$RACE_mco, ffs_mco_2016$RACE_ffs, exclude="ifany")
+#                        Black Hispanic Native American/Asian Other White  <NA>
+#  Black                 10063        0                     0     0     0    58
+#  Hispanic                  0       86                     0     0     0     0
+#  Native American/Asian     0        0                   338     0     0     1
+#  Other                     0        0                     0  1511     0     3
+#  White                     0        0                     0     0 14558    92
+#  <NA>                   3934       43                   134   690  6344     0
+
+
+### Creating unified demographic variables
+
+#Region
+ffs_mco_2016$Region_2016 <- NA
+
+ffs_mco_2016$Region_2016[is.na(ffs_mco_2016$Region_mco) & is.na(ffs_mco_2016$Region_ffs)] <- NA
+ffs_mco_2016$Region_2016[is.na(ffs_mco_2016$Region_mco) & !(is.na(ffs_mco_2016$Region_ffs))] <- ffs_mco_2016$Region_ffs[is.na(ffs_mco_2016$Region_mco) & !(is.na(ffs_mco_2016$Region_ffs))]
+ffs_mco_2016$Region_2016[!(is.na(ffs_mco_2016$Region_mco)) & is.na(ffs_mco_2016$Region_ffs)] <- ffs_mco_2016$Region_mco[!(is.na(ffs_mco_2016$Region_mco)) & is.na(ffs_mco_2016$Region_ffs)]
+ffs_mco_2016$Region_2016[!(is.na(ffs_mco_2016$Region_mco)) & !(is.na(ffs_mco_2016$Region_ffs))] <- ffs_mco_2016$Region_mco[!(is.na(ffs_mco_2016$Region_mco)) & !(is.na(ffs_mco_2016$Region_ffs))]
+
+table(ffs_mco_2016$Region_2016, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   9403                    4669                    8563                    3876                    2202                    9142 
+
+
+#Citizenship
+ffs_mco_2016$Citizen_Status_2016 <- NA
+
+ffs_mco_2016$Citizen_Status_2016[is.na(ffs_mco_2016$CIT_STAT_mco) & is.na(ffs_mco_2016$CIT_STAT_ffs)] <- NA
+ffs_mco_2016$Citizen_Status_2016[is.na(ffs_mco_2016$CIT_STAT_mco) & !(is.na(ffs_mco_2016$CIT_STAT_ffs))] <- ffs_mco_2016$CIT_STAT_ffs[is.na(ffs_mco_2016$CIT_STAT_mco) & !(is.na(ffs_mco_2016$CIT_STAT_ffs))]
+ffs_mco_2016$Citizen_Status_2016[!(is.na(ffs_mco_2016$CIT_STAT_mco)) & is.na(ffs_mco_2016$CIT_STAT_ffs)] <- ffs_mco_2016$CIT_STAT_mco[!(is.na(ffs_mco_2016$CIT_STAT_mco)) & is.na(ffs_mco_2016$CIT_STAT_ffs)]
+ffs_mco_2016$Citizen_Status_2016[!(is.na(ffs_mco_2016$CIT_STAT_mco)) & !(is.na(ffs_mco_2016$CIT_STAT_ffs))] <- ffs_mco_2016$CIT_STAT_mco[!(is.na(ffs_mco_2016$CIT_STAT_mco)) & !(is.na(ffs_mco_2016$CIT_STAT_ffs))]
+
+table(ffs_mco_2016$Citizen_Status_2016, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          2                        3687                       34166 
+
+#Race
+ffs_mco_2016$Race_2016 <- NA
+
+ffs_mco_2016$Race_2016[is.na(ffs_mco_2016$RACE_mco) & is.na(ffs_mco_2016$RACE_ffs)] <- NA
+ffs_mco_2016$Race_2016[is.na(ffs_mco_2016$RACE_mco) & !(is.na(ffs_mco_2016$RACE_ffs))] <- ffs_mco_2016$RACE_ffs[is.na(ffs_mco_2016$RACE_mco) & !(is.na(ffs_mco_2016$RACE_ffs))]
+ffs_mco_2016$Race_2016[!(is.na(ffs_mco_2016$RACE_mco)) & is.na(ffs_mco_2016$RACE_ffs)] <- ffs_mco_2016$RACE_mco[!(is.na(ffs_mco_2016$RACE_mco)) & is.na(ffs_mco_2016$RACE_ffs)]
+ffs_mco_2016$Race_2016[!(is.na(ffs_mco_2016$RACE_mco)) & !(is.na(ffs_mco_2016$RACE_ffs))] <- ffs_mco_2016$RACE_mco[!(is.na(ffs_mco_2016$RACE_mco)) & !(is.na(ffs_mco_2016$RACE_ffs))]
+
+table(ffs_mco_2016$Race_2016, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                14055                   129                   473                  2204                 20994
+
+#DOB
+ffs_mco_2016$DOB_2016 <- as.Date(NA)
+
+ffs_mco_2016$DOB_2016[is.na(ffs_mco_2016$BIRTH_mco) & is.na(ffs_mco_2016$BIRTH_ffs)] <- NA
+ffs_mco_2016$DOB_2016[is.na(ffs_mco_2016$BIRTH_mco) & !(is.na(ffs_mco_2016$BIRTH_ffs))] <- as.Date(ffs_mco_2016$BIRTH_ffs)[is.na(ffs_mco_2016$BIRTH_mco) & !(is.na(ffs_mco_2016$BIRTH_ffs))]
+ffs_mco_2016$DOB_2016[!(is.na(ffs_mco_2016$BIRTH_mco)) & is.na(ffs_mco_2016$BIRTH_ffs)] <- as.Date(ffs_mco_2016$BIRTH_mco)[!(is.na(ffs_mco_2016$BIRTH_mco)) & is.na(ffs_mco_2016$BIRTH_ffs)]
+ffs_mco_2016$DOB_2016[!(is.na(ffs_mco_2016$BIRTH_mco)) & !(is.na(ffs_mco_2016$BIRTH_ffs))] <- as.Date(ffs_mco_2016$BIRTH_mco)[!(is.na(ffs_mco_2016$BIRTH_mco)) & !(is.na(ffs_mco_2016$BIRTH_ffs))]
+
+#Age
+ffs_mco_2016$Age_at_earliest_enrollment_2016 <- NA
+ffs_mco_2016$Age_at_earliest_enrollment_2016[is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs) & is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco)] <- NA
+ffs_mco_2016$Age_at_earliest_enrollment_2016[is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco))] <- ffs_mco_2016$Age_at_earliest_enrollment_mco[is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco))]
+ffs_mco_2016$Age_at_earliest_enrollment_2016[!(is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco)] <- ffs_mco_2016$Age_at_earliest_enrollment_ffs[!(is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco)]
+ffs_mco_2016$Age_at_earliest_enrollment_2016[!(is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco))] <- apply(ffs_mco_2016[!(is.na(ffs_mco_2016$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2016$Age_at_earliest_enrollment_mco)),c("Age_at_earliest_enrollment_ffs", "Age_at_earliest_enrollment_mco")],1,min)
+
+summary(ffs_mco_2016$Age_at_earliest_enrollment_2016)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.10   27.10   28.12   31.20   55.80 
+
+
+###Joining eligibility 2015 with eligibility 2016
+ffs_mco_2015_2016 <- full_join(ffs_mco_2015,
+                          ffs_mco_2016,
+                          by = "srecip")
+
+dim(ffs_mco_2015_2016)
+#59105    71
+```
+
+
+# Read in 2017 Pregnancy Data
+
+## Eligibility
+
+### FFS
+
+```{r}
+ffs2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2017_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(ffs2017)
+#38598   134
+
+#joining fips data
+ffs2017 <- left_join(ffs2017, fipstab, by=c("R_FIPS" = "V1"))
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(ffs2017$srecip)) #38598
+length(which(is.na(ffs2017$srecip))) #0
+##using CASE_ID
+length(unique(ffs2017$CASE_ID)) #38592
+ffs2017$CASE_ID[which(duplicated(ffs2017$CASE_ID))] #87176483006 710384242003 770103178002 976099021109 153109115003 790033074001
+length(which(is.na(ffs2017$CASE_ID))) #0
+
+#investigate repeats in caseid variable
+caseids <- ffs2017$CASE_ID[which(duplicated(ffs2017$CASE_ID))]
+ffs2017[which(ffs2017$CASE_ID %in% caseids), 1:35]
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("ffs_beg",names(ffs2017))) #7
+
+#end dates
+length(grep("ffs_end",names(ffs2017))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(ffs2017$ffs_beg5)) #none
+table(is.na(ffs2017$ffs_beg6)) #none
+table(is.na(ffs2017$ffs_beg7)) #none
+
+table(is.na(ffs2017$ffs_end5)) #none
+table(is.na(ffs2017$ffs_end6)) #none
+table(is.na(ffs2017$ffs_end7)) #none
+
+#checking if dates are before as.Date("2014-07-01") or after as.Date("2014-07-01")
+sapply(ffs2017[,grep(paste(c("ffs_beg", "ffs_end"),
+                           collapse = "|"), names(ffs2017))], 
+       function(x){length(which((x < as.Date("2016-07-01")) | (x > as.Date("2017-06-30"))))})
+#ffs_beg1 ffs_beg2 ffs_beg3 ffs_beg4 ffs_end1 ffs_end2 ffs_end3 ffs_end4 ffs_beg5 ffs_beg6 ffs_end5 ffs_beg7 ffs_end6 ffs_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0 
+```
+
+##### Data Cleaning
+
+```{r}
+#recode demographics
+ffs2017 = ffs2017 %>% 
+  select(srecip, ffs_beg1, ffs_beg2, ffs_beg3, ffs_beg4, ffs_end1, ffs_end2, ffs_end3, ffs_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_ffs = V3,
+         BIRTH_ffs = BIRTH,
+         CIT_STAT_ffs = CIT_STAT,
+         SEX_ffs = SEX,
+         RACE_ffs = RACE)
+
+#Date of earliest enrollment
+ffs2017$DOEE_ffs <- apply(ffs2017[,grep("_beg", names(ffs2017))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+ffs2017$Age_at_earliest_enrollment_ffs <- round(as.numeric((as.Date(ffs2017$DOEE_ffs) - as.Date(ffs2017$BIRTH_ffs))/365.2425),1)
+summary(ffs2017$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  13.50   24.10   27.20   28.13   31.30  116.50 
+#remove invalid values
+ffs2017 <- ffs2017[which(ffs2017$Age_at_earliest_enrollment_ffs >= 21 & ffs2017$Age_at_earliest_enrollment_ffs < 100),]
+summary(ffs2017$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.20   27.20   28.16   31.30   56.20 
+
+dim(ffs2017)
+#38391    16		
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(ffs2017$RACE_ffs, exclude = "ifany")
+#    1     2     3     4     5     6     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#21093 14503   217    19    33   232     2    13     1   466   107   322   148    23    12    68   939     7   186  
+
+ffs2017$RACE_ffs[ffs2017$RACE_ffs=="1"] <- "White"
+ffs2017$RACE_ffs[ffs2017$RACE_ffs=="2"] <- "Black"
+ffs2017$RACE_ffs[ffs2017$RACE_ffs=="3" | ffs2017$RACE_ffs=="6"] <- "Native American"
+ffs2017$RACE_ffs[ffs2017$RACE_ffs=="4"] <- "Asian"
+ffs2017$RACE_ffs[ffs2017$RACE_ffs=="5"] <- "Hispanic"
+ffs2017$RACE_ffs[ffs2017$RACE_ffs %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+ffs2017$RACE_ffs[which(ffs2017$RACE_ffs=="Native American" | ffs2017$RACE_ffs=="Asian")] <- "Native American/Asian"
+table(ffs2017$RACE_ffs, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                14503                    33                   468                  2294                 21093  
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(ffs2017$CIT_STAT_ffs, exclude = "ifany")
+#    A     C     D     E     I     N     P     R     V 
+#   66 33867     2     4  2728   533   937   251     3   
+ffs2017$CIT_STAT_ffs[!(ffs2017$CIT_STAT_ffs %in% c("C", "N")) & !(is.na(ffs2017$CIT_STAT_ffs))] <- "Non-US citizen"
+ffs2017$CIT_STAT_ffs[ffs2017$CIT_STAT_ffs %in% c("C", "N")] <- "US (or naturalized) citizen"
+ffs2017$CIT_STAT_ffs[is.na(ffs2017$CIT_STAT_ffs)] <- "Missing"
+table(ffs2017$CIT_STAT_ffs, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       3991                       34400 
+
+
+#sex
+table(ffs2017$SEX_ffs, exclude = "ifany")
+#    F 
+#38391   
+
+#rfips
+table(is.na(ffs2017$R_FIPS_ffs))
+
+table(ffs2017$Region_ffs, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   9536                    4805                    8595                    3948                    2226                    9281 
+```
+
+
+### MCO
+
+```{r}
+mco2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data//sfy2017_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2017_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(mco2017)
+#26789   144
+
+#joining fips data
+mco2017 <- left_join(mco2017, fipstab, by=c("R_FIPS" = "V1"))
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(mco2017$srecip)) #26789
+length(which(is.na(mco2017$srecip))) #0
+
+##using mco_id
+length(grep("mco_id", names(mco2017))) #5
+#"mco_id1" "mco_id2" "mco_id3" "mco_id4" "mco_id5"
+
+##investigating mco_id
+lapply(mco2017[,grep("mco_id", names(mco2017))], function(x){c(length(unique(x)),
+                                                               length(which(duplicated(x))),
+                                                               length(which(is.na(x))))})
+#$`mco_id1`
+#[1]     6 26783     0
+#
+#$mco_id2
+#[1]     7 26782 22679
+#
+#$mco_id3
+#[1]     7 26782 26689
+#
+#$mco_id4
+#[1]     2 26787 26788
+#
+#$mco_id5
+#[1]     1 26788 26789
+
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("mco_beg",names(mco2017))) #7
+
+#end dates
+length(grep("mco_end",names(mco2017))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(mco2017$mco_beg5)) #none
+table(is.na(mco2017$mco_beg6)) #none
+table(is.na(mco2017$mco_beg7)) #none
+
+table(is.na(mco2017$mco_end5)) #none
+table(is.na(mco2017$mco_end6)) #none
+table(is.na(mco2017$mco_end7)) #none
+
+sapply(mco2017[,grep(paste(c("mco_beg", "mco_end"),
+                           collapse = "|"), names(mco2017))], 
+       function(x){length(which((x < as.Date("2016-07-01")) | (x > as.Date("2017-06-30"))))})
+#mco_beg1 mco_beg2 mco_beg3 mco_beg4 mco_end1 mco_end2 mco_end3 mco_end4 mco_beg5 mco_beg6 mco_end5 mco_beg7 mco_end6 mco_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0
+```
+
+##### Data Cleaning
+
+```{r}
+#rename specific demo vars names
+mco2017 = mco2017 %>% 
+  select(srecip, mco_beg1, mco_beg2, mco_beg3, mco_beg4, mco_end1, mco_end2, mco_end3, mco_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_mco = V3,
+         BIRTH_mco = BIRTH,
+         CIT_STAT_mco = CIT_STAT,
+         SEX_mco = SEX,
+         RACE_mco = RACE)
+
+#Date of earliest enrollment
+mco2017$DOEE_mco <- apply(mco2017[,grep("_beg", names(mco2017))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+mco2017$Age_at_earliest_enrollment_mco <- round(as.numeric((as.Date(mco2017$DOEE_mco) - as.Date(mco2017$BIRTH_mco))/365.2425),1)
+summary(mco2017$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  13.50   24.20   27.30   28.19   31.30  116.50  
+#remove invalid values
+mco2017 <- mco2017[which(mco2017$Age_at_earliest_enrollment_mco >= 21 & mco2017$Age_at_earliest_enrollment_mco < 100),]
+summary(mco2017$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.30   27.30   28.22   31.30   56.30 
+
+dim(mco2017)
+#26659    16	
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(mco2017$RACE_mco, exclude = "ifany")
+#    1     2     3     4     5     6     8     9     B     C     D     F     G     J     K     O     S     V 
+#14417 10362   139     8    19   151     2    10   300    69   236   100    13     7    49   662     4   111  
+
+mco2017$RACE_mco[mco2017$RACE_mco=="1"] <- "White"
+mco2017$RACE_mco[mco2017$RACE_mco=="2"] <- "Black"
+mco2017$RACE_mco[mco2017$RACE_mco=="3" | mco2017$RACE_mco=="6"] <- "Native American"
+mco2017$RACE_mco[mco2017$RACE_mco=="4"] <- "Asian"
+mco2017$RACE_mco[mco2017$RACE_mco=="5"] <- "Hispanic"
+mco2017$RACE_mco[mco2017$RACE_mco %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+mco2017$RACE_mco[which(mco2017$RACE_mco=="Native American" | mco2017$RACE_mco=="Asian")] <- "Native American/Asian"
+table(mco2017$RACE_mco, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                10362                    19                   298                  1563                 14417 
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(mco2017$CIT_STAT_mco, exclude = "ifany")
+#    A     C     D     E     I     N     P     R     V 
+#   21 23664     1     3  1742   379   645   203     1 
+mco2017$CIT_STAT_mco[!(mco2017$CIT_STAT_mco %in% c("C", "N")) & !(is.na(mco2017$CIT_STAT_mco))] <- "Non-US citizen"
+mco2017$CIT_STAT_mco[mco2017$CIT_STAT_mco %in% c("C", "N")] <- "US (or naturalized) citizen"
+mco2017$CIT_STAT_mco[is.na(mco2017$CIT_STAT_mco)] <- "Missing"
+table(mco2017$CIT_STAT_mco, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       2616                       24043 
+
+#sex
+table(mco2017$SEX_mco, exclude = "ifany")
+#    F 
+#26659   
+
+#rfips
+table(is.na(mco2017$R_FIPS_mco))
+
+table(mco2017$Region_mco, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   6591                    3185                    6001                    2645                    1592                    6645
+
+
+```
+
+
+### Joining ffs and mco 2017
+
+```{r}
+#total number of patients in common
+length(intersect(ffs2017$srecip, mco2017$srecip)) #26612
+
+
+#ffsvars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "ffs_beg", "ffs_end"), collapse = "|"),names(ffs2017)))
+#mcovars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "mco_beg", "mco_end"), collapse = "|"),names(mco2017)))
+ffs_mco_2017 <- full_join(mco2017,#[,mcovars],
+                          ffs2017,#[,ffsvars],
+                          by = "srecip")
+
+dim(ffs_mco_2017)
+#38438    31
+
+#sort by srecip
+ffs_mco_2017 <- ffs_mco_2017[order(ffs_mco_2017$srecip),]
+
+#Checking demographics between mco and ffs
+table(ffs_mco_2017$CIT_STAT_mco, ffs_mco_2017$CIT_STAT_ffs, exclude="ifany")
+#                              Non-US citizen US (or naturalized) citizen  <NA>
+#  Non-US citizen                        2614                           0     2
+#  US (or naturalized) citizen              0                       23998    45
+#  <NA>                                  1377                       10402     0
+table(ffs_mco_2017$RACE_mco, ffs_mco_2017$RACE_ffs, exclude="ifany")
+#                        Black Hispanic Native American/Asian Other White  <NA>
+#  Black                 10345        0                     0     0     0    17
+#  Hispanic                  0       19                     0     0     0     0
+#  Native American/Asian     0        0                   298     0     0     0
+#  Other                     0        0                     0  1562     0     1
+#  White                     0        0                     0     0 14388    29
+#  <NA>                   4158       14                   170   732  6705     0
+
+
+### Creating unified demographic variables
+
+#Region
+ffs_mco_2017$Region_2017 <- NA
+
+ffs_mco_2017$Region_2017[is.na(ffs_mco_2017$Region_mco) & is.na(ffs_mco_2017$Region_ffs)] <- NA
+ffs_mco_2017$Region_2017[is.na(ffs_mco_2017$Region_mco) & !(is.na(ffs_mco_2017$Region_ffs))] <- ffs_mco_2017$Region_ffs[is.na(ffs_mco_2017$Region_mco) & !(is.na(ffs_mco_2017$Region_ffs))]
+ffs_mco_2017$Region_2017[!(is.na(ffs_mco_2017$Region_mco)) & is.na(ffs_mco_2017$Region_ffs)] <- ffs_mco_2017$Region_mco[!(is.na(ffs_mco_2017$Region_mco)) & is.na(ffs_mco_2017$Region_ffs)]
+ffs_mco_2017$Region_2017[!(is.na(ffs_mco_2017$Region_mco)) & !(is.na(ffs_mco_2017$Region_ffs))] <- ffs_mco_2017$Region_mco[!(is.na(ffs_mco_2017$Region_mco)) & !(is.na(ffs_mco_2017$Region_ffs))]
+
+table(ffs_mco_2017$Region_2017, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   9549                    4810                    8602                    3955                    2229                    9293 
+
+#Citizenship
+ffs_mco_2017$Citizen_Status_2017 <- NA
+
+ffs_mco_2017$Citizen_Status_2017[is.na(ffs_mco_2017$CIT_STAT_mco) & is.na(ffs_mco_2017$CIT_STAT_ffs)] <- NA
+ffs_mco_2017$Citizen_Status_2017[is.na(ffs_mco_2017$CIT_STAT_mco) & !(is.na(ffs_mco_2017$CIT_STAT_ffs))] <- ffs_mco_2017$CIT_STAT_ffs[is.na(ffs_mco_2017$CIT_STAT_mco) & !(is.na(ffs_mco_2017$CIT_STAT_ffs))]
+ffs_mco_2017$Citizen_Status_2017[!(is.na(ffs_mco_2017$CIT_STAT_mco)) & is.na(ffs_mco_2017$CIT_STAT_ffs)] <- ffs_mco_2017$CIT_STAT_mco[!(is.na(ffs_mco_2017$CIT_STAT_mco)) & is.na(ffs_mco_2017$CIT_STAT_ffs)]
+ffs_mco_2017$Citizen_Status_2017[!(is.na(ffs_mco_2017$CIT_STAT_mco)) & !(is.na(ffs_mco_2017$CIT_STAT_ffs))] <- ffs_mco_2017$CIT_STAT_mco[!(is.na(ffs_mco_2017$CIT_STAT_mco)) & !(is.na(ffs_mco_2017$CIT_STAT_ffs))]
+
+table(ffs_mco_2017$Citizen_Status_2017, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       3993                       34445 
+                       
+#Race
+ffs_mco_2017$Race_2017 <- NA
+
+ffs_mco_2017$Race_2017[is.na(ffs_mco_2017$RACE_mco) & is.na(ffs_mco_2017$RACE_ffs)] <- NA
+ffs_mco_2017$Race_2017[is.na(ffs_mco_2017$RACE_mco) & !(is.na(ffs_mco_2017$RACE_ffs))] <- ffs_mco_2017$RACE_ffs[is.na(ffs_mco_2017$RACE_mco) & !(is.na(ffs_mco_2017$RACE_ffs))]
+ffs_mco_2017$Race_2017[!(is.na(ffs_mco_2017$RACE_mco)) & is.na(ffs_mco_2017$RACE_ffs)] <- ffs_mco_2017$RACE_mco[!(is.na(ffs_mco_2017$RACE_mco)) & is.na(ffs_mco_2017$RACE_ffs)]
+ffs_mco_2017$Race_2017[!(is.na(ffs_mco_2017$RACE_mco)) & !(is.na(ffs_mco_2017$RACE_ffs))] <- ffs_mco_2017$RACE_mco[!(is.na(ffs_mco_2017$RACE_mco)) & !(is.na(ffs_mco_2017$RACE_ffs))]
+
+table(ffs_mco_2017$Race_2017, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                14520                    33                   468                  2295                 21122 
+
+#DOB
+ffs_mco_2017$DOB_2017 <- as.Date(NA)
+
+ffs_mco_2017$DOB_2017[is.na(ffs_mco_2017$BIRTH_mco) & is.na(ffs_mco_2017$BIRTH_ffs)] <- NA
+ffs_mco_2017$DOB_2017[is.na(ffs_mco_2017$BIRTH_mco) & !(is.na(ffs_mco_2017$BIRTH_ffs))] <- as.Date(ffs_mco_2017$BIRTH_ffs)[is.na(ffs_mco_2017$BIRTH_mco) & !(is.na(ffs_mco_2017$BIRTH_ffs))]
+ffs_mco_2017$DOB_2017[!(is.na(ffs_mco_2017$BIRTH_mco)) & is.na(ffs_mco_2017$BIRTH_ffs)] <- as.Date(ffs_mco_2017$BIRTH_mco)[!(is.na(ffs_mco_2017$BIRTH_mco)) & is.na(ffs_mco_2017$BIRTH_ffs)]
+ffs_mco_2017$DOB_2017[!(is.na(ffs_mco_2017$BIRTH_mco)) & !(is.na(ffs_mco_2017$BIRTH_ffs))] <- as.Date(ffs_mco_2017$BIRTH_mco)[!(is.na(ffs_mco_2017$BIRTH_mco)) & !(is.na(ffs_mco_2017$BIRTH_ffs))]
+
+#Age
+ffs_mco_2017$Age_at_earliest_enrollment_2017 <- NA
+ffs_mco_2017$Age_at_earliest_enrollment_2017[is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs) & is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco)] <- NA
+ffs_mco_2017$Age_at_earliest_enrollment_2017[is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco))] <- ffs_mco_2017$Age_at_earliest_enrollment_mco[is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco))]
+ffs_mco_2017$Age_at_earliest_enrollment_2017[!(is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco)] <- ffs_mco_2017$Age_at_earliest_enrollment_ffs[!(is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco)]
+ffs_mco_2017$Age_at_earliest_enrollment_2017[!(is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco))] <- apply(ffs_mco_2017[!(is.na(ffs_mco_2017$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2017$Age_at_earliest_enrollment_mco)),c("Age_at_earliest_enrollment_ffs", "Age_at_earliest_enrollment_mco")],1,min)
+
+summary(ffs_mco_2017$Age_at_earliest_enrollment_2017)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.20   27.20   28.16   31.30   56.20  
+
+
+
+###Joining eligibility 2015_2016 with eligibility 2017
+ffs_mco_2015_2016_2017 <- full_join(ffs_mco_2015_2016,
+                          ffs_mco_2017,
+                          by = "srecip")
+
+dim(ffs_mco_2015_2016_2017)
+#82253   106
+```
+
+
+# Read in 2018 Pregnancy Data
+
+## Eligibility
+
+### FFS
+
+```{r}
+ffs2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2018_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(ffs2018)
+#39644   134
+
+#joining fips data
+ffs2018 <- left_join(ffs2018, fipstab, by=c("R_FIPS" = "V1"))
+
+#remove invalid fips
+ffs2018[is.na(ffs2018$V3),"R_FIPS"] #975 975
+ffs2018 <- ffs2018[-which(is.na(ffs2018$V3)),]
+dim(ffs2018)
+#39642   135
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(ffs2018$srecip)) #39644
+length(which(is.na(ffs2018$srecip))) #0
+##using CASE_ID
+length(unique(ffs2018$CASE_ID)) #39642
+ffs2018$CASE_ID[which(duplicated(ffs2018$CASE_ID))] #87176483006 810155316006
+length(which(is.na(ffs2018$CASE_ID))) #0
+
+#investigate repeats in caseid variable
+caseids <- ffs2018$CASE_ID[which(duplicated(ffs2018$CASE_ID))]
+ffs2018[which(ffs2018$CASE_ID %in% caseids), 1:35]
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("ffs_beg",names(ffs2018))) #7
+
+#end dates
+length(grep("ffs_end",names(ffs2018))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(ffs2018$ffs_beg5)) #none
+table(is.na(ffs2018$ffs_beg6)) #none
+table(is.na(ffs2018$ffs_beg7)) #none
+
+table(is.na(ffs2018$ffs_end5)) #none
+table(is.na(ffs2018$ffs_end6)) #none
+table(is.na(ffs2018$ffs_end7)) #none
+
+#checking if dates are before as.Date("2014-07-01") or after as.Date("2014-07-01")
+sapply(ffs2018[,grep(paste(c("ffs_beg", "ffs_end"),
+                           collapse = "|"), names(ffs2018))], 
+       function(x){length(which((x < as.Date("2017-07-01")) | (x > as.Date("2018-06-30"))))})
+#ffs_beg1 ffs_beg2 ffs_beg3 ffs_beg4 ffs_end1 ffs_end2 ffs_end3 ffs_end4 ffs_beg5 ffs_beg6 ffs_end5 ffs_beg7 ffs_end6 ffs_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0 
+```
+
+##### Data Cleaning
+
+```{r}
+#recode demographics
+ffs2018 = ffs2018 %>% 
+  select(srecip, ffs_beg1, ffs_beg2, ffs_beg3, ffs_beg4, ffs_end1, ffs_end2, ffs_end3, ffs_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_ffs = V3,
+         BIRTH_ffs = BIRTH,
+         CIT_STAT_ffs = CIT_STAT,
+         SEX_ffs = SEX,
+         RACE_ffs = RACE)
+
+#Date of earliest enrollment
+ffs2018$DOEE_ffs <- apply(ffs2018[,grep("_beg", names(ffs2018))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+ffs2018$Age_at_earliest_enrollment_ffs <- round(as.numeric((as.Date(ffs2018$DOEE_ffs) - as.Date(ffs2018$BIRTH_ffs))/365.2425),1)
+summary(ffs2018$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  15.20   24.20   27.40   28.26   31.40  117.20  
+#remove invalid values
+ffs2018 <- ffs2018[which(ffs2018$Age_at_earliest_enrollment_ffs >= 21 & ffs2018$Age_at_earliest_enrollment_ffs < 100),]
+summary(ffs2018$Age_at_earliest_enrollment_ffs)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.30   27.40   28.31   31.40   55.60 
+
+dim(ffs2018)
+#39404    16	
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(ffs2018$RACE_ffs, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     B     C     D     F     G     J     K     O     S     V 
+#21536 15183   192    10    28   244     1     1    12   499   101   311   136    23     9    71  1091     6   189  
+
+ffs2018$RACE_ffs[ffs2018$RACE_ffs=="1"] <- "White"
+ffs2018$RACE_ffs[ffs2018$RACE_ffs=="2"] <- "Black"
+ffs2018$RACE_ffs[ffs2018$RACE_ffs=="3" | ffs2018$RACE_ffs=="6"] <- "Native American"
+ffs2018$RACE_ffs[ffs2018$RACE_ffs=="4"] <- "Asian"
+ffs2018$RACE_ffs[ffs2018$RACE_ffs=="5"] <- "Hispanic"
+ffs2018$RACE_ffs[ffs2018$RACE_ffs %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+ffs2018$RACE_ffs[which(ffs2018$RACE_ffs=="Native American" | ffs2018$RACE_ffs=="Asian")] <- "Native American/Asian"
+table(ffs2018$RACE_ffs, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                15108                    28                   441                  2442                 21385 
+             
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(ffs2018$CIT_STAT_ffs, exclude = "ifany")
+#    A     C     D     E     I     N     P     R     V 
+#   46 34442     1     4  3257   495   861   290     8   
+ffs2018$CIT_STAT_ffs[!(ffs2018$CIT_STAT_ffs %in% c("C", "N")) & !(is.na(ffs2018$CIT_STAT_ffs))] <- "Non-US citizen"
+ffs2018$CIT_STAT_ffs[ffs2018$CIT_STAT_ffs %in% c("C", "N")] <- "US (or naturalized) citizen"
+ffs2018$CIT_STAT_ffs[is.na(ffs2018$CIT_STAT_ffs)] <- "Missing"
+table(ffs2018$CIT_STAT_ffs, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       4467                       34937  
+
+#sex
+table(ffs2018$SEX_ffs, exclude = "ifany")
+#    F 
+#39404    
+
+#rfips
+table(is.na(ffs2018$R_FIPS_ffs))
+
+table(ffs2018$Region_ffs, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                  10182                    4942                    8752                    3960                    2216                    9352 
+```
+
+
+### MCO
+
+```{r}
+mco2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data//sfy2018_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2018_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(mco2018)
+#28482   144
+
+#joining fips data
+mco2018 <- left_join(mco2018, fipstab, by=c("R_FIPS" = "V1"))
+
+#remove invalid fips
+mco2018[is.na(mco2018$V3),"R_FIPS"] #975 
+mco2018 <- mco2018[-which(is.na(mco2018$V3)),]
+dim(mco2018)
+#28481   145
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(mco2018$srecip)) #28482
+length(which(is.na(mco2018$srecip))) #0
+
+##using mco_id
+length(grep("mco_id", names(mco2018))) #5
+#"mco_id1" "mco_id2" "mco_id3" "mco_id4" "mco_id5"
+
+##investigating mco_id
+lapply(mco2018[,grep("mco_id", names(mco2018))], function(x){c(length(unique(x)),
+                                                               length(which(duplicated(x))),
+                                                               length(which(is.na(x))))})
+#$`mco_id1`
+#[1]     6 28476     0
+#
+#$mco_id2
+#[1]     7 28475 24245
+#
+#$mco_id3
+#[1]     7 28475 28374
+#
+#$mco_id4
+#[1]     3 28479 28480
+#
+#$mco_id5
+#[1]     1 28481 28482
+
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("mco_beg",names(mco2018))) #7
+
+#end dates
+length(grep("mco_end",names(mco2018))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(mco2018$mco_beg5)) #none
+table(is.na(mco2018$mco_beg6)) #none
+table(is.na(mco2018$mco_beg7)) #none
+
+table(is.na(mco2018$mco_end5)) #none
+table(is.na(mco2018$mco_end6)) #none
+table(is.na(mco2018$mco_end7)) #none
+
+sapply(mco2018[,grep(paste(c("mco_beg", "mco_end"),
+                           collapse = "|"), names(mco2018))], 
+       function(x){length(which((x < as.Date("2017-07-01")) | (x > as.Date("2018-06-30"))))})
+#mco_beg1 mco_beg2 mco_beg3 mco_beg4 mco_end1 mco_end2 mco_end3 mco_end4 mco_beg5 mco_beg6 mco_end5 mco_beg7 mco_end6 mco_end7 
+#       0        0        0        0        0        0        0        0        0        0        0        0        0        0
+```
+
+##### Data Cleaning
+
+```{r}
+#rename specific demo vars names
+mco2018 = mco2018 %>% 
+  select(srecip, mco_beg1, mco_beg2, mco_beg3, mco_beg4, mco_end1, mco_end2, mco_end3, mco_end4, V3, BIRTH, CIT_STAT, SEX, RACE) %>%
+  rename(Region_mco = V3,
+         BIRTH_mco = BIRTH,
+         CIT_STAT_mco = CIT_STAT,
+         SEX_mco = SEX,
+         RACE_mco = RACE)
+
+#Date of earliest enrollment
+mco2018$DOEE_mco <- apply(mco2018[,grep("_beg", names(mco2018))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+mco2018$Age_at_earliest_enrollment_mco <- round(as.numeric((as.Date(mco2018$DOEE_mco) - as.Date(mco2018$BIRTH_mco))/365.2425),1)
+summary(mco2018$Age_at_earliest_enrollment)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  15.20   24.40   27.50   28.35   31.40  117.20
+#remove invalid values
+mco2018 <- mco2018[which(mco2018$Age_at_earliest_enrollment_mco >= 21 & mco2018$Age_at_earliest_enrollment_mco < 100),]
+summary(mco2018$Age_at_earliest_enrollment_mco)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.40   27.60   28.39   31.50   55.50 
+
+dim(mco2018)
+#28330    16	
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(mco2018$RACE_mco, exclude = "ifany")
+#    1     2     3     4     5     6     9     B     C     D     F     G     J     K     O     S     V 
+#15076 11174   136     6    13   183     5   333    72   223    99    19     6    42   811     3   129 
+
+mco2018$RACE_mco[mco2018$RACE_mco=="1"] <- "White"
+mco2018$RACE_mco[mco2018$RACE_mco=="2"] <- "Black"
+mco2018$RACE_mco[mco2018$RACE_mco=="3" | mco2018$RACE_mco=="6"] <- "Native American"
+mco2018$RACE_mco[mco2018$RACE_mco=="4"] <- "Asian"
+mco2018$RACE_mco[mco2018$RACE_mco=="5"] <- "Hispanic"
+mco2018$RACE_mco[mco2018$RACE_mco %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+mco2018$RACE_mco[which(mco2018$RACE_mco=="Native American" | mco2018$RACE_mco=="Asian")] <- "Native American/Asian"
+table(mco2018$RACE_mco, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                11174                    13                   325                  1742                 15076
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(mco2018$CIT_STAT_mco, exclude = "ifany")
+#    A     C     E     I     N     P     R     V 
+#   15 24920     3  2147   377   621   245     2 
+mco2018$CIT_STAT_mco[!(mco2018$CIT_STAT_mco %in% c("C", "N")) & !(is.na(mco2018$CIT_STAT_mco))] <- "Non-US citizen"
+mco2018$CIT_STAT_mco[mco2018$CIT_STAT_mco %in% c("C", "N")] <- "US (or naturalized) citizen"
+mco2018$CIT_STAT_mco[is.na(mco2018$CIT_STAT_mco)] <- "Missing"
+table(mco2018$CIT_STAT_mco, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       3033                       25297   
+
+
+#sex
+table(mco2018$SEX_mco, exclude = "ifany")
+#    F 
+#28330  
+
+#rfips
+table(is.na(mco2018$R_FIPS_mco))
+
+table(mco2018$Region_mco, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                   7330                    3419                    6230                    2737                    1644                    6970
+
+```
+
+
+### Joining ffs and mco 2018
+
+```{r}
+#total number of patients in common
+length(intersect(ffs2018$srecip, mco2018$srecip)) #28315
+
+
+#ffsvars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "ffs_beg", "ffs_end"), collapse = "|"),names(ffs2018)))
+#mcovars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "mco_beg", "mco_end"), collapse = "|"),names(mco2018)))
+ffs_mco_2018 <- full_join(mco2018,#[,mcovars],
+                          ffs2018,#[,ffsvars],
+                          by = "srecip")
+
+dim(ffs_mco_2018)
+#39419    31
+
+#sort by srecip
+ffs_mco_2018 <- ffs_mco_2018[order(ffs_mco_2018$srecip),]
+
+#Checking demographics between mco and ffs
+table(ffs_mco_2018$CIT_STAT_mco, ffs_mco_2018$CIT_STAT_ffs, exclude="ifany")
+#                              Non-US citizen US (or naturalized) citizen  <NA>
+#  Non-US citizen                        3030                           0     3
+#  US (or naturalized) citizen              0                       25285    12
+#  <NA>                                  1437                        9652     0
+table(ffs_mco_2018$RACE_mco, ffs_mco_2018$RACE_ffs, exclude="ifany")
+#                        Black Hispanic Native American/Asian Other White  <NA>
+#  Black                 11171        0                     0     0     0     3
+#  Hispanic                  0       13                     0     0     0     0
+#  Native American/Asian     0        0                   324     0     0     1
+#  Other                     0        0                     0  1742     0     0
+#  White                     0        0                     0     0 15065    11
+#  <NA>                   3937       15                   117   700  6320     0
+
+### Creating unified demographic variables
+
+#Region
+ffs_mco_2018$Region_2018 <- NA
+
+ffs_mco_2018$Region_2018[is.na(ffs_mco_2018$Region_mco) & is.na(ffs_mco_2018$Region_ffs)] <- NA
+ffs_mco_2018$Region_2018[is.na(ffs_mco_2018$Region_mco) & !(is.na(ffs_mco_2018$Region_ffs))] <- ffs_mco_2018$Region_ffs[is.na(ffs_mco_2018$Region_mco) & !(is.na(ffs_mco_2018$Region_ffs))]
+ffs_mco_2018$Region_2018[!(is.na(ffs_mco_2018$Region_mco)) & is.na(ffs_mco_2018$Region_ffs)] <- ffs_mco_2018$Region_mco[!(is.na(ffs_mco_2018$Region_mco)) & is.na(ffs_mco_2018$Region_ffs)]
+ffs_mco_2018$Region_2018[!(is.na(ffs_mco_2018$Region_mco)) & !(is.na(ffs_mco_2018$Region_ffs))] <- ffs_mco_2018$Region_mco[!(is.na(ffs_mco_2018$Region_mco)) & !(is.na(ffs_mco_2018$Region_ffs))]
+
+table(ffs_mco_2018$Region_2018, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                  10185                    4945                    8756                    3962                    2217                    9354 
+
+#Citizenship
+ffs_mco_2018$Citizen_Status_2018 <- NA
+
+ffs_mco_2018$Citizen_Status_2018[is.na(ffs_mco_2018$CIT_STAT_mco) & is.na(ffs_mco_2018$CIT_STAT_ffs)] <- NA
+ffs_mco_2018$Citizen_Status_2018[is.na(ffs_mco_2018$CIT_STAT_mco) & !(is.na(ffs_mco_2018$CIT_STAT_ffs))] <- ffs_mco_2018$CIT_STAT_ffs[is.na(ffs_mco_2018$CIT_STAT_mco) & !(is.na(ffs_mco_2018$CIT_STAT_ffs))]
+ffs_mco_2018$Citizen_Status_2018[!(is.na(ffs_mco_2018$CIT_STAT_mco)) & is.na(ffs_mco_2018$CIT_STAT_ffs)] <- ffs_mco_2018$CIT_STAT_mco[!(is.na(ffs_mco_2018$CIT_STAT_mco)) & is.na(ffs_mco_2018$CIT_STAT_ffs)]
+ffs_mco_2018$Citizen_Status_2018[!(is.na(ffs_mco_2018$CIT_STAT_mco)) & !(is.na(ffs_mco_2018$CIT_STAT_ffs))] <- ffs_mco_2018$CIT_STAT_mco[!(is.na(ffs_mco_2018$CIT_STAT_mco)) & !(is.na(ffs_mco_2018$CIT_STAT_ffs))]
+
+table(ffs_mco_2018$Citizen_Status_2018, exclude = "ifany")
+#             Non-US citizen US (or naturalized) citizen 
+#                       4470                       34949 
+
+#Race
+ffs_mco_2018$Race_2018 <- NA
+
+ffs_mco_2018$Race_2018[is.na(ffs_mco_2018$RACE_mco) & is.na(ffs_mco_2018$RACE_ffs)] <- NA
+ffs_mco_2018$Race_2018[is.na(ffs_mco_2018$RACE_mco) & !(is.na(ffs_mco_2018$RACE_ffs))] <- ffs_mco_2018$RACE_ffs[is.na(ffs_mco_2018$RACE_mco) & !(is.na(ffs_mco_2018$RACE_ffs))]
+ffs_mco_2018$Race_2018[!(is.na(ffs_mco_2018$RACE_mco)) & is.na(ffs_mco_2018$RACE_ffs)] <- ffs_mco_2018$RACE_mco[!(is.na(ffs_mco_2018$RACE_mco)) & is.na(ffs_mco_2018$RACE_ffs)]
+ffs_mco_2018$Race_2018[!(is.na(ffs_mco_2018$RACE_mco)) & !(is.na(ffs_mco_2018$RACE_ffs))] <- ffs_mco_2018$RACE_mco[!(is.na(ffs_mco_2018$RACE_mco)) & !(is.na(ffs_mco_2018$RACE_ffs))]
+
+table(ffs_mco_2018$Race_2018, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                15111                    28                   442                  2442                 21396    
+
+#DOB
+ffs_mco_2018$DOB_2018 <- as.Date(NA)
+
+ffs_mco_2018$DOB_2018[is.na(ffs_mco_2018$BIRTH_mco) & is.na(ffs_mco_2018$BIRTH_ffs)] <- NA
+ffs_mco_2018$DOB_2018[is.na(ffs_mco_2018$BIRTH_mco) & !(is.na(ffs_mco_2018$BIRTH_ffs))] <- as.Date(ffs_mco_2018$BIRTH_ffs)[is.na(ffs_mco_2018$BIRTH_mco) & !(is.na(ffs_mco_2018$BIRTH_ffs))]
+ffs_mco_2018$DOB_2018[!(is.na(ffs_mco_2018$BIRTH_mco)) & is.na(ffs_mco_2018$BIRTH_ffs)] <- as.Date(ffs_mco_2018$BIRTH_mco)[!(is.na(ffs_mco_2018$BIRTH_mco)) & is.na(ffs_mco_2018$BIRTH_ffs)]
+ffs_mco_2018$DOB_2018[!(is.na(ffs_mco_2018$BIRTH_mco)) & !(is.na(ffs_mco_2018$BIRTH_ffs))] <- as.Date(ffs_mco_2018$BIRTH_mco)[!(is.na(ffs_mco_2018$BIRTH_mco)) & !(is.na(ffs_mco_2018$BIRTH_ffs))]
+
+#Age
+ffs_mco_2018$Age_at_earliest_enrollment_2018 <- NA
+ffs_mco_2018$Age_at_earliest_enrollment_2018[is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs) & is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco)] <- NA
+ffs_mco_2018$Age_at_earliest_enrollment_2018[is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco))] <- ffs_mco_2018$Age_at_earliest_enrollment_mco[is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco))]
+ffs_mco_2018$Age_at_earliest_enrollment_2018[!(is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco)] <- ffs_mco_2018$Age_at_earliest_enrollment_ffs[!(is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco)]
+ffs_mco_2018$Age_at_earliest_enrollment_2018[!(is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco))] <- apply(ffs_mco_2018[!(is.na(ffs_mco_2018$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2018$Age_at_earliest_enrollment_mco)),c("Age_at_earliest_enrollment_ffs", "Age_at_earliest_enrollment_mco")],1,min)
+
+summary(ffs_mco_2018$Age_at_earliest_enrollment_2018)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.30   27.40   28.31   31.40   55.60 
+
+###Joining eligibility 2015_2016_217 with eligibility 2018
+ffs_mco_2015_2016_2017_2018 <- full_join(ffs_mco_2015_2016_2017,
+                          ffs_mco_2018,
+                          by = "srecip")
+
+dim(ffs_mco_2015_2016_2017_2018)
+#103985    141
+```
+
+
+#Fixing variable names specific to year
+
+```{r}
+names(ffs_mco_2015_2016_2017_2018)[grep(".y.y", names(ffs_mco_2015_2016_2017_2018))] <- gsub(".y.y", "_2018", names(ffs_mco_2015_2016_2017_2018)[grep(".y.y", names(ffs_mco_2015_2016_2017_2018))])
+
+names(ffs_mco_2015_2016_2017_2018)[grep(".x.x", names(ffs_mco_2015_2016_2017_2018))] <- gsub(".x.x", "_2017", names(ffs_mco_2015_2016_2017_2018)[grep(".x.x", names(ffs_mco_2015_2016_2017_2018))])
+
+names(ffs_mco_2015_2016_2017_2018)[grep(".y", names(ffs_mco_2015_2016_2017_2018))] <- gsub(".y", "_2016", names(ffs_mco_2015_2016_2017_2018)[grep(".y", names(ffs_mco_2015_2016_2017_2018))])
+
+names(ffs_mco_2015_2016_2017_2018)[grep(".x", names(ffs_mco_2015_2016_2017_2018))] <- gsub(".x", "_2015", names(ffs_mco_2015_2016_2017_2018)[grep(".x", names(ffs_mco_2015_2016_2017_2018))])
+
+#reorder variables
+dim(ffs_mco_2015_2016_2017_2018)
+#103985    141
+
+order <- c(1	,
+2	,
+6	,
+3	,
+7	,
+4	,
+8	,
+5	,
+9	,
+10	,
+11	,
+12	,
+13	,
+14	,
+15	,
+16	,
+17	,
+21	,
+18	,
+22	,
+19	,
+23	,
+20	,
+24	,
+25	,
+26	,
+27	,
+28	,
+29	,
+30	,
+31	,
+32	,
+33	,
+34	,
+35	,
+36	,
+37	,
+41	,
+38	,
+42	,
+39	,
+43	,
+40	,
+44	,
+45	,
+46	,
+47	,
+48	,
+49	,
+50	,
+51	,
+52	,
+56	,
+53	,
+57	,
+54	,
+58	,
+55	,
+59	,
+60	,
+61	,
+62	,
+63	,
+64	,
+65	,
+66	,
+67	,
+68	,
+69	,
+70	,
+71	,
+72	,
+76	,
+73	,
+77	,
+74	,
+78	,
+75	,
+79	,
+80	,
+81	,
+82	,
+83	,
+84	,
+85	,
+86	,
+87	,
+91	,
+88	,
+92	,
+89	,
+93	,
+90	,
+94	,
+95	,
+96	,
+97	,
+98	,
+99	,
+100	,
+101	,
+102	,
+103	,
+104	,
+105	,
+106	,
+107	,
+111	,
+108	,
+112	,
+109	,
+113	,
+110 ,
+114	,
+115	,
+116	,
+117	,
+118	,
+119	,
+120	,
+121	,
+122	,
+126	,
+123	,
+127	,
+124	,
+128	,
+125	,
+129	,
+130	,
+131	,
+132	,
+133	,
+134	,
+135	,
+136	,
+137	,
+138	,
+139	,
+140	,
+141)
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[, order]
+dim(ffs_mco_2015_2016_2017_2018)
+#103985    141
+```
+
+# Comparing year specific demographics
+
+```{r}
+#DOB
+ffs_mco_2015_2016_2017_2018$Overall_DOB <- apply(ffs_mco_2015_2016_2017_2018[,grep("DOB", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){max(na.omit(x))})
+
+#Race
+ffs_mco_2015_2016_2017_2018$Overall_Race <- apply(ffs_mco_2015_2016_2017_2018[,grep("Race", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+table(ffs_mco_2015_2016_2017_2018$Overall_Race, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                38945                   384                  1304                  6215                 57137 
+
+#Citizen
+which(apply(ffs_mco_2015_2016_2017_2018[,grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){length(unique(na.omit(x)))})==0)
+#26195 27380 30484 53342
+#integer(0)
+#ffs_mco_2015_2016_2017_2018$Overall_Citizen[-c(26195, 27380, 30484, 53342)] <- apply(ffs_mco_2015_2016_2017_2018[-c(26195, 27380, 30484, 53342),grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+ffs_mco_2015_2016_2017_2018$Overall_Citizen <- apply(ffs_mco_2015_2016_2017_2018[,grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+table(ffs_mco_2015_2016_2017_2018$Overall_Citizen, exclude = "ifany")
+#                    Missing              Non-US citizen US (or naturalized) citizen 
+#                          4                       11407                       92574 
+
+#Date of earliest enrollment
+ffs_mco_2015_2016_2017_2018$Overall_DOEE <- apply(ffs_mco_2015_2016_2017_2018[,grep("DOEE", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+ffs_mco_2015_2016_2017_2018$Overall_Age_at_earliest_enrollment <- apply(ffs_mco_2015_2016_2017_2018[,grep("Age_at_earliest_enrollment", names(ffs_mco_2015_2016_2017_2018))], 1,function(x){min(na.omit(x))})
+summary(ffs_mco_2015_2016_2017_2018$Overall_Age_at_earliest_enrollment)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   23.80   26.90   27.94   31.10   56.20 
+
+#Region
+ffs_mco_2015_2016_2017_2018$Overall_Region <- apply(ffs_mco_2015_2016_2017_2018[,grep("Region", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+table(ffs_mco_2015_2016_2017_2018$Overall_Region, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
+#                  26039                   12725                   23834                   10452                    5973                   24962 
+
+
+dim(ffs_mco_2015_2016_2017_2018)
+#103985    147
+```
+
+#Create exclusion variables
+
+```{r}
+ffs_mco_2015_2016_2017_2018$FY2015 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2015$srecip, 1, 0)
+ffs_mco_2015_2016_2017_2018$FY2016 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2016$srecip, 1, 0)
+ffs_mco_2015_2016_2017_2018$FY2017 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2017$srecip, 1, 0)
+ffs_mco_2015_2016_2017_2018$FY2018 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2018$srecip, 1, 0)
+
+dim(ffs_mco_2015_2016_2017_2018)
+#103985    151
+
+table(ffs_mco_2015_2016_2017_2018$FY2015)
+#    0     1 
+#70001 33984  
+table(ffs_mco_2015_2016_2017_2018$FY2016)
+#    0     1 
+#66130 37855 
+table(ffs_mco_2015_2016_2017_2018$FY2017)
+#    0     1 
+#65547 38438 
+table(ffs_mco_2015_2016_2017_2018$FY2018)
+#    0     1 
+#64566 39419 
+```
+
+#Calculating months enrolled
+
+##Overall
+
+```{r}
+#months enrolled
+medata <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015",
+                                                    "mco_beg2_2015",
+                                                    "mco_beg3_2015",
+                                                    "mco_beg4_2015",
+                                                    "mco_end1_2015",
+                                                    "mco_end2_2015",
+                                                    "mco_end3_2015",
+                                                    "mco_end4_2015",
+                                                    
+                                                    "mco_beg1_2016",
+                                                    "mco_beg2_2016",
+                                                    "mco_beg3_2016",
+                                                    "mco_beg4_2016",
+                                                    "mco_end1_2016",
+                                                    "mco_end2_2016",
+                                                    "mco_end3_2016",
+                                                    "mco_end4_2016",
+                                                    
+                                                    "mco_beg1_2017",
+                                                    "mco_beg2_2017",
+                                                    "mco_beg3_2017",
+                                                    "mco_beg4_2017",
+                                                    "mco_end1_2017",
+                                                    "mco_end2_2017",
+                                                    "mco_end3_2017",
+                                                    "mco_end4_2017",
+                                                    
+                                                    "mco_beg1_2018",
+                                                    "mco_beg2_2018",
+                                                    "mco_beg3_2018",
+                                                    "mco_beg4_2018",
+                                                    "mco_end1_2018",
+                                                    "mco_end2_2018",
+                                                    "mco_end3_2018",
+                                                    "mco_end4_2018",
+                                                    
+                                                    "ffs_beg1_2015",
+                                                    "ffs_beg2_2015",
+                                                    "ffs_beg3_2015",
+                                                    "ffs_beg4_2015",
+                                                    "ffs_end1_2015",
+                                                    "ffs_end2_2015",
+                                                    "ffs_end3_2015",
+                                                    "ffs_end4_2015",
+                                                    
+                                                    "ffs_beg1_2016",
+                                                    "ffs_beg2_2016",
+                                                    "ffs_beg3_2016",
+                                                    "ffs_beg4_2016",
+                                                    "ffs_end1_2016",
+                                                    "ffs_end2_2016",
+                                                    "ffs_end3_2016",
+                                                    "ffs_end4_2016",
+                                                    
+                                                    "ffs_beg1_2017",
+                                                    "ffs_beg2_2017",
+                                                    "ffs_beg3_2017",
+                                                    "ffs_beg4_2017",
+                                                    "ffs_end1_2017",
+                                                    "ffs_end2_2017",
+                                                    "ffs_end3_2017",
+                                                    "ffs_end4_2017",
+                                                    
+                                                    "ffs_beg1_2018",
+                                                    "ffs_beg2_2018",
+                                                    "ffs_beg3_2018",
+                                                    "ffs_beg4_2018",
+                                                    "ffs_end1_2018",
+                                                    "ffs_end2_2018",
+                                                    "ffs_end3_2018",
+                                                    "ffs_end4_2018"), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata$me <- apply(medata, 1, myfunc)
+
+ffs_mco_2015_2016_2017_2018$months_enrolled <- medata$me
+summary(ffs_mco_2015_2016_2017_2018$months_enrolled)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   1.00    8.00   12.00   13.69   18.00   48.00 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
+
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$months_enrolled_cat=="< 3 mos"),]
+dim(ffs_mco_2015_2016_2017_2018)
+#103460    
+```
+
+## 2015
+
+```{r}
+eligibility_2015 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2015==1),]
+
+#months enrolled
+medata_2015 <- eligibility_2015[,grep(paste0(c("mco_beg1_2015",
+                                                    "mco_beg2_2015",
+                                                    "mco_beg3_2015",
+                                                    "mco_beg4_2015",
+                                                    "mco_end1_2015",
+                                                    "mco_end2_2015",
+                                                    "mco_end3_2015",
+                                                    "mco_end4_2015",
+                                                    "ffs_beg1_2015",
+                                                    "ffs_beg2_2015",
+                                                    "ffs_beg3_2015",
+                                                    "ffs_beg4_2015",
+                                                    "ffs_end1_2015",
+                                                    "ffs_end2_2015",
+                                                    "ffs_end3_2015",
+                                                    "ffs_end4_2015"), collapse = "|"), names(eligibility_2015))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2015$me_2015 <- apply(medata_2015, 1, myfunc)
+
+eligibility_2015$months_enrolled_2015 <- medata_2015$me_2015
+le3me_srecip_2015 <- eligibility_2015$srecip[which(eligibility_2015$months_enrolled_2015<3)]
+
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2015),]
+dim(ffs_mco_2015_2016_2017_2018)
+#103371    
+```
+
+
+## 2016
+
+```{r}
+eligibility_2016 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2016==1),]
+
+#months enrolled
+medata_2016 <- eligibility_2016[,grep(paste0(c("mco_beg1_2016",
+                                                    "mco_beg2_2016",
+                                                    "mco_beg3_2016",
+                                                    "mco_beg4_2016",
+                                                    "mco_end1_2016",
+                                                    "mco_end2_2016",
+                                                    "mco_end3_2016",
+                                                    "mco_end4_2016",
+                                                    "ffs_beg1_2016",
+                                                    "ffs_beg2_2016",
+                                                    "ffs_beg3_2016",
+                                                    "ffs_beg4_2016",
+                                                    "ffs_end1_2016",
+                                                    "ffs_end2_2016",
+                                                    "ffs_end3_2016",
+                                                    "ffs_end4_2016"), collapse = "|"), names(eligibility_2016))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2016$me_2016 <- apply(medata_2016, 1, myfunc)
+
+eligibility_2016$months_enrolled_2016 <- medata_2016$me_2016
+le3me_srecip_2016 <- eligibility_2016$srecip[which(eligibility_2016$months_enrolled_2016<3)]
+
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2016),]
+dim(ffs_mco_2015_2016_2017_2018)
+#103309    
+```
+
+
+## 2017
+
+```{r}
+eligibility_2017 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2017==1),]
+
+#months enrolled
+medata_2017 <- eligibility_2017[,grep(paste0(c("mco_beg1_2017",
+                                                    "mco_beg2_2017",
+                                                    "mco_beg3_2017",
+                                                    "mco_beg4_2017",
+                                                    "mco_end1_2017",
+                                                    "mco_end2_2017",
+                                                    "mco_end3_2017",
+                                                    "mco_end4_2017",
+                                                    "ffs_beg1_2017",
+                                                    "ffs_beg2_2017",
+                                                    "ffs_beg3_2017",
+                                                    "ffs_beg4_2017",
+                                                    "ffs_end1_2017",
+                                                    "ffs_end2_2017",
+                                                    "ffs_end3_2017",
+                                                    "ffs_end4_2017"), collapse = "|"), names(eligibility_2017))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2017$me_2017 <- apply(medata_2017, 1, myfunc)
+
+eligibility_2017$months_enrolled_2017 <- medata_2017$me_2017
+le3me_srecip_2017 <- eligibility_2017$srecip[which(eligibility_2017$months_enrolled_2017<3)]
+
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2017),]
+dim(ffs_mco_2015_2016_2017_2018)
+#103227    
+```
+
+
+## 2018
+
+```{r}
+eligibility_2018 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2018==1),]
+
+#months enrolled
+medata_2018 <- eligibility_2018[,grep(paste0(c("mco_beg1_2018",
+                                                    "mco_beg2_2018",
+                                                    "mco_beg3_2018",
+                                                    "mco_beg4_2018",
+                                                    "mco_end1_2018",
+                                                    "mco_end2_2018",
+                                                    "mco_end3_2018",
+                                                    "mco_end4_2018",
+                                                    "ffs_beg1_2018",
+                                                    "ffs_beg2_2018",
+                                                    "ffs_beg3_2018",
+                                                    "ffs_beg4_2018",
+                                                    "ffs_end1_2018",
+                                                    "ffs_end2_2018",
+                                                    "ffs_end3_2018",
+                                                    "ffs_end4_2018"), collapse = "|"), names(eligibility_2017))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2018$me_2018 <- apply(medata_2018, 1, myfunc)
+
+eligibility_2018$months_enrolled_2018 <- medata_2018$me_2018
+le3me_srecip_2018 <- eligibility_2018$srecip[which(eligibility_2018$months_enrolled_2018<3)]
+
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2018),]
+dim(ffs_mco_2015_2016_2017_2018)
+#103204    
+```
+
+
+# Joining with planning districts
+
+```{r}
+#getting fips
+ffs2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2015_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+ffs2015 <- ffs2015[,names(ffs2015) %in% c("srecip", "R_FIPS")]
+names(ffs2015)[2] <- "R_FIPS_ffs2015"
+ffs2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2016_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+ffs2016 <- ffs2016[,names(ffs2016) %in% c("srecip", "R_FIPS")]
+names(ffs2016)[2] <- "R_FIPS_ffs2016"
+ffs2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2017_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+ffs2017 <- ffs2017[,names(ffs2017) %in% c("srecip", "R_FIPS")]
+names(ffs2017)[2] <- "R_FIPS_ffs2017"
+ffs2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2018_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+ffs2018 <- ffs2018[,names(ffs2018) %in% c("srecip", "R_FIPS")]
+names(ffs2018)[2] <- "R_FIPS_ffs2018"
+mco2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2015_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+mco2015 <- mco2015[,names(mco2015) %in% c("srecip", "R_FIPS")]
+names(mco2015)[2] <- "R_FIPS_mco2015"
+mco2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2016_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+mco2016 <- mco2016[,names(mco2016) %in% c("srecip", "R_FIPS")]
+names(mco2016)[2] <- "R_FIPS_mco2016"
+mco2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2017_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+mco2017 <- mco2017[,names(mco2017) %in% c("srecip", "R_FIPS")]
+names(mco2017)[2] <- "R_FIPS_mco2017"
+mco2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2018_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+mco2018 <- mco2018[,names(mco2018) %in% c("srecip", "R_FIPS")]
+names(mco2018)[2] <- "R_FIPS_mco2018"
+
+all_dfs <- plyr::join_all(list(ffs2015,
+                         ffs2016,
+                         ffs2017,
+                         ffs2018,
+                         mco2015,
+                         mco2016,
+                         mco2017,
+                         mco2018), by='srecip', type='full')
+all_dfs$Overall_R_FIPS <- apply(all_dfs[,-1], 1, function(x){unique(na.omit(x))})
+
+planning_districts <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/planning_districts.xlsx",
+                    sheet = "planning_districts",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+planning_districts$FIPS <- as.character(planning_districts$FIPS)
+planning_districts$FIPS[which(nchar(planning_districts$FIPS)==1)] <- paste0("00", planning_districts$FIPS[which(nchar(planning_districts$FIPS)==1)])
+planning_districts$FIPS[which(nchar(planning_districts$FIPS)==2)] <- paste0("0", planning_districts$FIPS[which(nchar(planning_districts$FIPS)==2)])
+
+all_dfs <- dplyr::left_join(all_dfs, planning_districts, by=c("Overall_R_FIPS"="FIPS"))
+
+ffs_mco_2015_2016_2017_2018 <- dplyr::left_join(ffs_mco_2015_2016_2017_2018, all_dfs[,c(1,10,13,14)], by="srecip")
+
+ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT <- factor(ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT,
+                                                               levels = c("HPD 1",
+                                                                          "HPD 2",
+                                                                          "HPD 3",
+                                                                          "HPD 4",
+                                                                          "HPD 5",
+                                                                          "HPD 6",
+                                                                          "HPD 7",
+                                                                          "HPD 8",
+                                                                          "HPD 9",
+                                                                          "HPD 10",
+                                                                          "HPD 11",
+                                                                          "HPD 12",
+                                                                          "HPD 13",
+                                                                          "HPD 14",
+                                                                          "HPD 15",
+                                                                          "HPD 16",
+                                                                          "HPD 17",
+                                                                          "HPD 18",
+                                                                          "HPD 19",
+                                                                          "HPD 20",
+                                                                          "HPD 21",
+                                                                          "HPD 22"))
+
+dim(ffs_mco_2015_2016_2017_2018)
+#103204    156
+```
+
+
+#Save combined eligibility data sets
+
+```{r}
+saveRDS(ffs_mco_2015_2016_2017_2018, "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+write.csv(as.matrix(ffs_mco_2015_2016_2017_2018), "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.csv")
+```
+

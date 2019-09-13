@@ -1,0 +1,787 @@
+---
+title: "Patient level claims table"
+author: "Spiro Stilianoudakis"
+date: "9/6/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in unique claims
+
+```{r}
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+# Determining the frequency of different fiscal years each subject had a claim in
+
+```{r}
+d <- unique_claims %>% group_by(SRECIP) %>% summarize(x = length(unique(FY)))
+table(d$x)
+#    1     2     3     4 
+#14094  2641   151     5 
+
+d$SRECIP[which(d$x==4)]
+#"312400495901" "354416003605" "361801135801" "393637009402" "605557201003"
+
+unique_claims[which(unique_claims$SRECIP=="312400495901"),]
+```
+
+# Patient level table using claims data (not mutually exclusive)
+
+## All years
+
+```{r}
+patient_level <- unique_claims[!duplicated(unique_claims$SRECIP),]
+
+#total
+dim(patient_level)
+
+#number of claims
+num_claims <- unique_claims %>%
+  group_by(SRECIP) %>%
+  count()
+mean(num_claims$n)
+sd(num_claims$n)
+
+#number of visits
+num_visits <- unique_claims %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits$n)
+sd(num_visits$n)
+
+#number of services
+num_service <- unique_claims %>%
+    group_by(SRECIP) %>%
+    summarize(n = length(unique(CDT_category)))
+mean(num_service$n)
+sd(num_service$n)
+
+#number of DIAGNOSTIC services
+num_DIAGNOSTIC <- unique_claims %>%
+    filter(CDT_category=="DIAGNOSTIC") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_DIAGNOSTIC$n)
+sd(num_DIAGNOSTIC$n)
+
+#number of PREVENTIVE services
+num_PREVENTIVE <- unique_claims %>%
+    filter(CDT_category=="PREVENTIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PREVENTIVE$n)
+sd(num_PREVENTIVE$n)
+
+#number of RESTORATIVE services
+num_RESTORATIVE <- unique_claims %>%
+    filter(CDT_category=="RESTORATIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_RESTORATIVE$n)
+sd(num_RESTORATIVE$n)
+
+#number of PERIODONTICS services
+num_PERIODONTICS <- unique_claims %>%
+    filter(CDT_category=="PERIODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PERIODONTICS$n)
+sd(num_PERIODONTICS$n)
+
+#number of PROSTHODONTICS services
+num_PROSTHODONTICS <- unique_claims %>%
+    filter(CDT_category=="PROSTHODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PROSTHODONTICS$n)
+sd(num_PROSTHODONTICS$n)
+
+#number of ENDODONTICS services
+num_ENDODONTICS <- unique_claims %>%
+    filter(CDT_category=="ENDODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ENDODONTICS$n)
+sd(num_ENDODONTICS$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ORAL_MAXILLOFACIAL_SURGERY <- unique_claims %>%
+    filter(CDT_category=="ORAL & MAXILLOFACIAL SURGERY") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+sd(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
+    filter(CDT_category=="ADJUNCTIVE GENERAL SERVICES") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+
+#age
+mean(patient_level$Overall_Age_at_earliest_enrollment)
+sd(patient_level$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level$age_cat_eligibility)
+round(prop.table(table(patient_level$age_cat_eligibility)), 3)
+
+#race
+table(patient_level$Overall_Race)
+round(prop.table(table(patient_level$Overall_Race)), 3)
+
+#citizenship
+table(patient_level$Overall_Citizen)
+round(prop.table(table(patient_level$Overall_Citizen)), 3)
+
+#region
+table(patient_level$Overall_Region)
+round(prop.table(table(patient_level$Overall_Region)), 3)
+
+#hpd
+table(patient_level$HEALTH_PLANNING_DISTRICT)
+round(prop.table(table(patient_level$HEALTH_PLANNING_DISTRICT)), 3)
+
+#hpr
+table(patient_level$HEALTH_PLANNING_REGION)
+round(prop.table(table(patient_level$HEALTH_PLANNING_REGION)), 3)
+
+```
+
+## 2015
+
+```{r}
+patient_level_2015 <- unique_claims[which(unique_claims$FY=="2015"),]
+patient_level_2015 <- patient_level_2015[!duplicated(patient_level_2015$SRECIP),]
+
+#total
+dim(patient_level_2015)
+
+#number of claims
+num_claims_2015 <- unique_claims %>%
+  filter(FY=="2015") %>%
+  group_by(SRECIP) %>%
+  count()
+mean(num_claims_2015$n)
+sd(num_claims_2015$n)
+
+#number of visits
+num_visits_2015 <- unique_claims %>%
+  filter(FY=="2015") %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits_2015$n)
+sd(num_visits_2015$n)
+
+#number of services
+num_service_2015 <- unique_claims %>%
+    filter(FY=="2015") %>%
+    group_by(SRECIP) %>%
+    summarize(n = length(unique(CDT_category)))
+mean(num_service_2015$n)
+sd(num_service_2015$n)
+
+#number of DIAGNOSTIC services
+num_DIAGNOSTIC <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="DIAGNOSTIC") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_DIAGNOSTIC$n)
+sd(num_DIAGNOSTIC$n)
+
+#number of PREVENTIVE services
+num_PREVENTIVE <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="PREVENTIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PREVENTIVE$n)
+sd(num_PREVENTIVE$n)
+
+#number of RESTORATIVE services
+num_RESTORATIVE <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="RESTORATIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_RESTORATIVE$n)
+sd(num_RESTORATIVE$n)
+
+#number of PERIODONTICS services
+num_PERIODONTICS <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="PERIODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PERIODONTICS$n)
+sd(num_PERIODONTICS$n)
+
+#number of PROSTHODONTICS services
+num_PROSTHODONTICS <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="PROSTHODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PROSTHODONTICS$n)
+sd(num_PROSTHODONTICS$n)
+
+#number of ENDODONTICS services
+num_ENDODONTICS <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="ENDODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ENDODONTICS$n)
+sd(num_ENDODONTICS$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ORAL_MAXILLOFACIAL_SURGERY <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="ORAL & MAXILLOFACIAL SURGERY") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+sd(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
+    filter(FY=="2015", CDT_category=="ADJUNCTIVE GENERAL SERVICES") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+
+
+#age
+mean(patient_level_2015$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2015$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2015$age_cat_eligibility)
+round(prop.table(table(patient_level_2015$age_cat_eligibility)), 3)
+
+#race
+table(patient_level_2015$Overall_Race)
+round(prop.table(table(patient_level_2015$Overall_Race)), 3)
+
+#citizenship
+table(patient_level_2015$Overall_Citizen)
+round(prop.table(table(patient_level_2015$Overall_Citizen)), 3)
+
+#region
+table(patient_level_2015$Overall_Region)
+round(prop.table(table(patient_level_2015$Overall_Region)), 3)
+
+#hpd
+table(patient_level_2015$HEALTH_PLANNING_DISTRICT)
+round(prop.table(table(patient_level_2015$HEALTH_PLANNING_DISTRICT)), 3)
+
+#hpr
+table(patient_level_2015$HEALTH_PLANNING_REGION)
+round(prop.table(table(patient_level_2015$HEALTH_PLANNING_REGION)), 3)
+
+
+```
+
+## 2016
+
+```{r}
+patient_level_2016 <- unique_claims[which(unique_claims$FY=="2016"),]
+patient_level_2016 <- patient_level_2016[!duplicated(patient_level_2016$SRECIP),]
+
+#total
+dim(patient_level_2016)
+
+#number of claims
+num_claims_2016 <- unique_claims %>%
+  filter(FY=="2016") %>%
+  group_by(SRECIP) %>%
+  count()
+mean(num_claims_2016$n)
+sd(num_claims_2016$n)
+
+#number of visits
+num_visits_2016 <- unique_claims %>%
+  filter(FY=="2016") %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits_2016$n)
+sd(num_visits_2016$n)
+
+#number of services
+num_service_2016 <- unique_claims %>%
+    filter(FY=="2016") %>%
+    group_by(SRECIP) %>%
+    summarize(n = length(unique(CDT_category)))
+mean(num_service_2016$n)
+sd(num_service_2016$n)
+
+#number of DIAGNOSTIC services
+num_DIAGNOSTIC <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="DIAGNOSTIC") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_DIAGNOSTIC$n)
+sd(num_DIAGNOSTIC$n)
+
+#number of PREVENTIVE services
+num_PREVENTIVE <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="PREVENTIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PREVENTIVE$n)
+sd(num_PREVENTIVE$n)
+
+#number of RESTORATIVE services
+num_RESTORATIVE <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="RESTORATIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_RESTORATIVE$n)
+sd(num_RESTORATIVE$n)
+
+#number of PERIODONTICS services
+num_PERIODONTICS <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="PERIODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PERIODONTICS$n)
+sd(num_PERIODONTICS$n)
+
+#number of PROSTHODONTICS services
+num_PROSTHODONTICS <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="PROSTHODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PROSTHODONTICS$n)
+sd(num_PROSTHODONTICS$n)
+
+#number of ENDODONTICS services
+num_ENDODONTICS <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="ENDODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ENDODONTICS$n)
+sd(num_ENDODONTICS$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ORAL_MAXILLOFACIAL_SURGERY <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="ORAL & MAXILLOFACIAL SURGERY") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+sd(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
+    filter(FY=="2016", CDT_category=="ADJUNCTIVE GENERAL SERVICES") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+
+
+#age
+mean(patient_level_2016$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2016$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2016$age_cat_eligibility)
+round(prop.table(table(patient_level_2016$age_cat_eligibility)), 3)
+
+#race
+table(patient_level_2016$Overall_Race)
+round(prop.table(table(patient_level_2016$Overall_Race)), 3)
+
+#citizenship
+table(patient_level_2016$Overall_Citizen)
+round(prop.table(table(patient_level_2016$Overall_Citizen)), 3)
+
+#region
+table(patient_level_2016$Overall_Region)
+round(prop.table(table(patient_level_2016$Overall_Region)), 3)
+
+#hpd
+table(patient_level_2016$HEALTH_PLANNING_DISTRICT)
+round(prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT)), 3)
+
+#hpr
+table(patient_level_2016$HEALTH_PLANNING_REGION)
+round(prop.table(table(patient_level_2016$HEALTH_PLANNING_REGION)), 3)
+
+
+```
+
+## 2017
+
+```{r}
+patient_level_2017 <- unique_claims[which(unique_claims$FY=="2017"),]
+patient_level_2017 <- patient_level_2017[!duplicated(patient_level_2017$SRECIP),]
+
+#total
+dim(patient_level_2017)
+
+#number of claims
+num_claims_2017 <- unique_claims %>%
+  filter(FY=="2017") %>%
+  group_by(SRECIP) %>%
+  count()
+mean(num_claims_2017$n)
+sd(num_claims_2017$n)
+
+#number of visits
+num_visits_2017 <- unique_claims %>%
+  filter(FY=="2017") %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits_2017$n)
+sd(num_visits_2017$n)
+
+#number of services
+num_service_2017 <- unique_claims %>%
+    filter(FY=="2017") %>%
+    group_by(SRECIP) %>%
+    summarize(n = length(unique(CDT_category)))
+mean(num_service_2017$n)
+sd(num_service_2017$n)
+
+#number of DIAGNOSTIC services
+num_DIAGNOSTIC <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="DIAGNOSTIC") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_DIAGNOSTIC$n)
+sd(num_DIAGNOSTIC$n)
+
+#number of PREVENTIVE services
+num_PREVENTIVE <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="PREVENTIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PREVENTIVE$n)
+sd(num_PREVENTIVE$n)
+
+#number of RESTORATIVE services
+num_RESTORATIVE <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="RESTORATIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_RESTORATIVE$n)
+sd(num_RESTORATIVE$n)
+
+#number of PERIODONTICS services
+num_PERIODONTICS <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="PERIODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PERIODONTICS$n)
+sd(num_PERIODONTICS$n)
+
+#number of PROSTHODONTICS services
+num_PROSTHODONTICS <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="PROSTHODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PROSTHODONTICS$n)
+sd(num_PROSTHODONTICS$n)
+
+#number of ENDODONTICS services
+num_ENDODONTICS <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="ENDODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ENDODONTICS$n)
+sd(num_ENDODONTICS$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ORAL_MAXILLOFACIAL_SURGERY <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="ORAL & MAXILLOFACIAL SURGERY") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+sd(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
+    filter(FY=="2017", CDT_category=="ADJUNCTIVE GENERAL SERVICES") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+
+
+#age
+mean(patient_level_2017$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2017$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2017$age_cat_eligibility)
+round(prop.table(table(patient_level_2017$age_cat_eligibility)), 3)
+
+#race
+table(patient_level_2017$Overall_Race)
+round(prop.table(table(patient_level_2017$Overall_Race)), 3)
+
+#citizenship
+table(patient_level_2017$Overall_Citizen)
+round(prop.table(table(patient_level_2017$Overall_Citizen)), 3)
+
+#region
+table(patient_level_2017$Overall_Region)
+round(prop.table(table(patient_level_2017$Overall_Region)), 3)
+
+#hpd
+table(patient_level_2017$HEALTH_PLANNING_DISTRICT)
+round(prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT)), 3)
+
+#hpr
+table(patient_level_2017$HEALTH_PLANNING_REGION)
+round(prop.table(table(patient_level_2017$HEALTH_PLANNING_REGION)), 3)
+
+
+```
+
+## 2018
+
+```{r}
+patient_level_2018 <- unique_claims[which(unique_claims$FY=="2018"),]
+patient_level_2018 <- patient_level_2018[!duplicated(patient_level_2018$SRECIP),]
+
+#total
+dim(patient_level_2018)
+
+#number of claims
+num_claims_2018 <- unique_claims %>%
+  filter(FY=="2018") %>%
+  group_by(SRECIP) %>%
+  count()
+mean(num_claims_2018$n)
+sd(num_claims_2018$n)
+
+#number of visits
+num_visits_2018 <- unique_claims %>%
+  filter(FY=="2018") %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits_2018$n)
+sd(num_visits_2018$n)
+
+#number of services
+num_service_2018 <- unique_claims %>%
+    filter(FY=="2018") %>%
+    group_by(SRECIP) %>%
+    summarize(n = length(unique(CDT_category)))
+mean(num_service_2018$n)
+sd(num_service_2018$n)
+
+#number of DIAGNOSTIC services
+num_DIAGNOSTIC <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="DIAGNOSTIC") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_DIAGNOSTIC$n)
+sd(num_DIAGNOSTIC$n)
+
+#number of PREVENTIVE services
+num_PREVENTIVE <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="PREVENTIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PREVENTIVE$n)
+sd(num_PREVENTIVE$n)
+
+#number of RESTORATIVE services
+num_RESTORATIVE <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="RESTORATIVE") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_RESTORATIVE$n)
+sd(num_RESTORATIVE$n)
+
+#number of PERIODONTICS services
+num_PERIODONTICS <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="PERIODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PERIODONTICS$n)
+sd(num_PERIODONTICS$n)
+
+#number of PROSTHODONTICS services
+num_PROSTHODONTICS <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="PROSTHODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_PROSTHODONTICS$n)
+sd(num_PROSTHODONTICS$n)
+
+#number of ENDODONTICS services
+num_ENDODONTICS <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="ENDODONTICS") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ENDODONTICS$n)
+sd(num_ENDODONTICS$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ORAL_MAXILLOFACIAL_SURGERY <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="ORAL & MAXILLOFACIAL SURGERY") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+sd(num_ORAL_MAXILLOFACIAL_SURGERY$n)
+
+#number of ORAL & MAXILLOFACIAL SURGERY services
+num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
+    filter(FY=="2018", CDT_category=="ADJUNCTIVE GENERAL SERVICES") %>%
+    group_by(SRECIP) %>%
+    count()
+mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
+
+
+#age
+mean(patient_level_2018$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2018$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2018$age_cat_eligibility)
+round(prop.table(table(patient_level_2018$age_cat_eligibility)), 3)
+
+#race
+table(patient_level_2018$Overall_Race)
+round(prop.table(table(patient_level_2018$Overall_Race)), 3)
+
+#citizenship
+table(patient_level_2018$Overall_Citizen)
+round(prop.table(table(patient_level_2018$Overall_Citizen)), 3)
+
+#region
+table(patient_level_2018$Overall_Region)
+round(prop.table(table(patient_level_2018$Overall_Region)), 3)
+
+#hpd
+table(patient_level_2018$HEALTH_PLANNING_DISTRICT)
+round(prop.table(table(patient_level_2018$HEALTH_PLANNING_DISTRICT)), 3)
+
+#hpr
+table(patient_level_2018$HEALTH_PLANNING_REGION)
+round(prop.table(table(patient_level_2018$HEALTH_PLANNING_REGION)), 3)
+
+
+```
+
+# Making table
+
+```{r}
+cbind.data.frame( #all years
+				   AY=rbind(nrow(patient_level), 
+				   paste0(round(mean(num_claims$n),1), " ", "(", round(sd(num_claims$n),1), ")"),
+				   paste0(round(mean(num_visits$n),1), " ", "(", round(sd(num_visits$n),1), ")"),
+				   paste0(round(mean(patient_level$Overall_Age_at_earliest_enrollment),1), " ", "(", round(sd(patient_level$Overall_Age_at_earliest_enrollment),1), ")"),
+				   "",
+				   t(t(paste0(table(patient_level$age_cat_eligibility), " ", "(",round(prop.table(table(patient_level$age_cat_eligibility)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level$Overall_Race), " ", "(",round(prop.table(table(patient_level$Overall_Race)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level$Overall_Citizen), " ", "(",round(prop.table(table(patient_level$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level$Overall_Region), " ", "(",round(prop.table(table(patient_level$Overall_Region)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level$HEALTH_PLANNING_REGION), " ", "(",round(prop.table(table(patient_level$HEALTH_PLANNING_REGION)), 3)*100, ")")))),
+				   
+				  #2015
+				   FY2015=rbind(nrow(patient_level_2015), 
+				   paste0(round(mean(num_claims_2015$n),1), " ", "(", round(sd(num_claims_2015$n),1), ")"),
+				   paste0(round(mean(num_visits_2015$n),1), " ", "(", round(sd(num_visits_2015$n),1), ")"),
+				   paste0(round(mean(patient_level_2015$Overall_Age_at_earliest_enrollment),1), " ", "(", round(sd(patient_level_2015$Overall_Age_at_earliest_enrollment),1), ")"),
+				   "",
+				   t(t(paste0(table(patient_level_2015$age_cat_eligibility), " ", "(",round(prop.table(table(patient_level_2015$age_cat_eligibility)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$Overall_Race), " ", "(",round(prop.table(table(patient_level_2015$Overall_Race)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2015$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$Overall_Region), " ", "(",round(prop.table(table(patient_level_2015$Overall_Region)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2015$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$HEALTH_PLANNING_REGION), " ", "(",round(prop.table(table(patient_level_2015$HEALTH_PLANNING_REGION)), 3)*100, ")")))),
+				   
+				  #2016
+				   FY2016=rbind(nrow(patient_level_2016), 
+				   paste0(round(mean(num_claims_2016$n),1), " ", "(", round(sd(num_claims_2016$n),1), ")"),
+				   paste0(round(mean(num_visits_2016$n),1), " ", "(", round(sd(num_visits_2016$n),1), ")"),
+				   paste0(round(mean(patient_level_2016$Overall_Age_at_earliest_enrollment),1), " ", "(", round(sd(patient_level_2016$Overall_Age_at_earliest_enrollment),1), ")"),
+				   "",
+				   t(t(paste0(table(patient_level_2016$age_cat_eligibility), " ", "(",round(prop.table(table(patient_level_2016$age_cat_eligibility)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2016$Overall_Race), " ", "(",round(prop.table(table(patient_level_2016$Overall_Race)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2016$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2016$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2016$Overall_Region), " ", "(",round(prop.table(table(patient_level_2016$Overall_Region)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2016$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2016$HEALTH_PLANNING_REGION), " ", "(",round(prop.table(table(patient_level_2016$HEALTH_PLANNING_REGION)), 3)*100, ")")))),
+				   
+				  #2017
+				   FY2017=rbind(nrow(patient_level_2017), 
+				   paste0(round(mean(num_claims_2017$n),1), " ", "(", round(sd(num_claims_2017$n),1), ")"),
+				   paste0(round(mean(num_visits_2017$n),1), " ", "(", round(sd(num_visits_2017$n),1), ")"),
+				   paste0(round(mean(patient_level_2017$Overall_Age_at_earliest_enrollment),1), " ", "(", round(sd(patient_level_2017$Overall_Age_at_earliest_enrollment),1), ")"),
+				   "",
+				   t(t(paste0(table(patient_level_2017$age_cat_eligibility), " ", "(",round(prop.table(table(patient_level_2017$age_cat_eligibility)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2017$Overall_Race), " ", "(",round(prop.table(table(patient_level_2017$Overall_Race)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2017$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2017$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2017$Overall_Region), " ", "(",round(prop.table(table(patient_level_2017$Overall_Region)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2017$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2017$HEALTH_PLANNING_REGION), " ", "(",round(prop.table(table(patient_level_2017$HEALTH_PLANNING_REGION)), 3)*100, ")")))),
+				   
+				  #2018
+				   FY2018=rbind(nrow(patient_level_2018), 
+				   paste0(round(mean(num_claims_2018$n),1), " ", "(", round(sd(num_claims_2018$n),1), ")"),
+				   paste0(round(mean(num_visits_2018$n),1), " ", "(", round(sd(num_visits_2018$n),1), ")"),
+				   paste0(round(mean(patient_level_2018$Overall_Age_at_earliest_enrollment),1), " ", "(", round(sd(patient_level_2018$Overall_Age_at_earliest_enrollment),1), ")"),
+				   "",
+				   t(t(paste0(table(patient_level_2018$age_cat_eligibility), " ", "(",round(prop.table(table(patient_level_2018$age_cat_eligibility)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$Overall_Race), " ", "(",round(prop.table(table(patient_level_2018$Overall_Race)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2018$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$Overall_Region), " ", "(",round(prop.table(table(patient_level_2018$Overall_Region)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2018$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$HEALTH_PLANNING_REGION), " ", "(",round(prop.table(table(patient_level_2018$HEALTH_PLANNING_REGION)), 3)*100, ")"))))
+				 )
+```
+

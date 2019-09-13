@@ -1,0 +1,501 @@
+---
+title: "Creating Demographics by FY table for eligibility data"
+author: "Spiro Stilianoudakis"
+date: "July 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(data.table)
+library(readr)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Read in cleaned eligibility data 2015-2018
+
+```{r}
+
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+
+table(sapply(eligibility,class))
+#character      Date    factor   numeric 
+#       60        68         2        26 
+
+```
+
+# Values to fill table
+
+## All FY
+
+```{r}
+#n
+dim(eligibility) #103204    156
+length(unique(eligibility$srecip)) #103204    
+
+#age
+mean(eligibility$Overall_Age_at_earliest_enrollment)
+sd(eligibility$Overall_Age_at_earliest_enrollment)
+
+#age category
+eligibility$age_cat <- ifelse(eligibility$Overall_Age_at_earliest_enrollment < 21, "<21",
+                                   ifelse(eligibility$Overall_Age_at_earliest_enrollment >= 21 & eligibility$Overall_Age_at_earliest_enrollment < 31, "21-30",
+                                          ifelse(eligibility$Overall_Age_at_earliest_enrollment >= 31 & eligibility$Overall_Age_at_earliest_enrollment < 41, "31-40",
+                                                 ifelse(eligibility$Overall_Age_at_earliest_enrollment >= 41 & eligibility$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
+eligibility$age_cat <- factor(eligibility$age_cat, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+table(eligibility$age_cat)
+round(prop.table(table(eligibility$age_cat)),3)
+
+#race
+table(eligibility$Overall_Race)
+round(prop.table(table(eligibility$Overall_Race)),3)
+
+#citizenship
+table(eligibility$Overall_Citizen)
+round(prop.table(table(eligibility$Overall_Citizen)),3)
+
+#region
+table(eligibility$Overall_Region)
+round(prop.table(table(eligibility$Overall_Region)),3)
+
+#HPD
+table(eligibility$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+round(prop.table(table(eligibility$HEALTH_PLANNING_DISTRICT, exclude = "ifany")), 3)
+
+#HPR
+table(eligibility$HEALTH_PLANNING_REGION, exclude = "ifany")
+round(prop.table(table(eligibility$HEALTH_PLANNING_REGION, exclude = "ifany")), 3)
+
+
+#months enrolled
+summary(eligibility$months_enrolled)
+mean(eligibility$months_enrolled)
+sd(eligibility$months_enrolled)
+
+#months enrolled category
+table(eligibility$months_enrolled_cat)
+round(prop.table(table(eligibility$months_enrolled_cat)),3)
+
+```
+
+## 2015
+
+```{r}
+eligibility_2015 <- eligibility[which(eligibility$FY2015==1),]
+
+#only ffs
+length(eligibility_2015$BIRTH_ffs_2015[!is.na(eligibility_2015$BIRTH_ffs_2015) & is.na(eligibility_2015$BIRTH_mco_2015)])
+
+#only mco
+length(eligibility_2015$BIRTH_mco_2015[!is.na(eligibility_2015$BIRTH_mco_2015) & is.na(eligibility_2015$BIRTH_ffs_2015)])
+
+#both
+length(eligibility_2015$BIRTH_mco_2015[!is.na(eligibility_2015$BIRTH_mco_2015) & !is.na(eligibility_2015$BIRTH_ffs_2015)])
+
+#n
+dim(eligibility_2015)
+
+#age
+mean(eligibility_2015$Overall_Age_at_earliest_enrollment)
+sd(eligibility_2015$Overall_Age_at_earliest_enrollment)
+
+#age category
+eligibility_2015$age_cat_2015 <- ifelse(eligibility_2015$Age_at_earliest_enrollment_2015 < 21, "<21",
+                                   ifelse(eligibility_2015$Age_at_earliest_enrollment_2015 >= 21 & eligibility_2015$Age_at_earliest_enrollment_2015 < 31, "21-30",
+                                          ifelse(eligibility_2015$Age_at_earliest_enrollment_2015 >= 31 & eligibility_2015$Age_at_earliest_enrollment_2015 < 41, "31-40",
+                                                 ifelse(eligibility_2015$Age_at_earliest_enrollment_2015 >= 41 & eligibility_2015$Age_at_earliest_enrollment_2015 < 51, "41-50", ">50"))))
+eligibility_2015$age_cat_2015 <- factor(eligibility_2015$age_cat_2015, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+table(eligibility_2015$age_cat_2015)
+round(prop.table(table(eligibility_2015$age_cat_2015)),3)
+
+#race
+table(eligibility_2015$Overall_Race)
+round(prop.table(table(eligibility_2015$Overall_Race)),3)
+
+#citizenship
+table(eligibility_2015$Overall_Citizen)
+round(prop.table(table(eligibility_2015$Overall_Citizen)),3)
+
+#region
+table(eligibility_2015$Overall_Region)
+round(prop.table(table(eligibility_2015$Overall_Region)),3)
+
+#HPD
+table(eligibility_2015$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+round(prop.table(table(eligibility_2015$HEALTH_PLANNING_DISTRICT, exclude = "ifany")), 3)
+
+#HPR
+table(eligibility_2015$HEALTH_PLANNING_REGION, exclude = "ifany")
+round(prop.table(table(eligibility_2015$HEALTH_PLANNING_REGION, exclude = "ifany")), 3)
+
+#months enrolled
+medata_2015 <- eligibility_2015[,grep(paste0(c("mco_beg1_2015",
+                                                    "mco_beg2_2015",
+                                                    "mco_beg3_2015",
+                                                    "mco_beg4_2015",
+                                                    "mco_end1_2015",
+                                                    "mco_end2_2015",
+                                                    "mco_end3_2015",
+                                                    "mco_end4_2015",
+                                                    "ffs_beg1_2015",
+                                                    "ffs_beg2_2015",
+                                                    "ffs_beg3_2015",
+                                                    "ffs_beg4_2015",
+                                                    "ffs_end1_2015",
+                                                    "ffs_end2_2015",
+                                                    "ffs_end3_2015",
+                                                    "ffs_end4_2015"), collapse = "|"), names(eligibility_2015))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2015$me_2015 <- apply(medata_2015, 1, myfunc)
+
+eligibility_2015$months_enrolled_2015 <- medata_2015$me_2015
+summary(eligibility_2015$months_enrolled_2015)
+mean(eligibility_2015$months_enrolled_2015)
+sd(eligibility_2015$months_enrolled_2015)
+
+#months enrolled category
+eligibility_2015$months_enrolled_cat_2015 <- ifelse(eligibility_2015$months_enrolled_2015 >= 3 & eligibility_2015$months_enrolled_2015 <= 6, "3 - 6 mos",
+                                          ifelse(eligibility_2015$months_enrolled_2015 > 6 & eligibility_2015$months_enrolled_2015 <= 9, "7 - 9 mos",
+                                                 ifelse(eligibility_2015$months_enrolled_2015 > 9 & eligibility_2015$months_enrolled_2015 <= 12, "9 - 12 mos", "< 3 mos")))
+eligibility_2015$months_enrolled_cat_2015 <- factor(eligibility_2015$months_enrolled_cat_2015, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(eligibility_2015$months_enrolled_cat_2015)
+round(prop.table(table(eligibility_2015$months_enrolled_cat_2015)),3)
+
+```
+
+## 2016
+
+```{r}
+eligibility_2016 <- eligibility[which(eligibility$FY2016==1),]
+
+#only ffs
+length(eligibility_2016$BIRTH_ffs_2016[!is.na(eligibility_2016$BIRTH_ffs_2016) & is.na(eligibility_2016$BIRTH_mco_2016)])
+
+#only mco
+length(eligibility_2016$BIRTH_mco_2016[!is.na(eligibility_2016$BIRTH_mco_2016) & is.na(eligibility_2016$BIRTH_ffs_2016)])
+
+#both
+length(eligibility_2016$BIRTH_mco_2016[!is.na(eligibility_2016$BIRTH_mco_2016) & !is.na(eligibility_2016$BIRTH_ffs_2016)])
+
+#n
+dim(eligibility_2016)
+
+#age
+mean(eligibility_2016$Overall_Age_at_earliest_enrollment)
+sd(eligibility_2016$Overall_Age_at_earliest_enrollment)
+
+#age category
+eligibility_2016$age_cat_2016 <- ifelse(eligibility_2016$Age_at_earliest_enrollment_2016 < 21, "<21",
+                                   ifelse(eligibility_2016$Age_at_earliest_enrollment_2016 >= 21 & eligibility_2016$Age_at_earliest_enrollment_2016 < 31, "21-30",
+                                          ifelse(eligibility_2016$Age_at_earliest_enrollment_2016 >= 31 & eligibility_2016$Age_at_earliest_enrollment_2016 < 41, "31-40",
+                                                 ifelse(eligibility_2016$Age_at_earliest_enrollment_2016 >= 41 & eligibility_2016$Age_at_earliest_enrollment_2016 < 51, "41-50", ">50"))))
+eligibility_2016$age_cat_2016 <- factor(eligibility_2016$age_cat_2016, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+table(eligibility_2016$age_cat_2016)
+round(prop.table(table(eligibility_2016$age_cat_2016)),3)
+
+#race
+table(eligibility_2016$Overall_Race)
+round(prop.table(table(eligibility_2016$Overall_Race)),3)
+
+#citizenship
+table(eligibility_2016$Overall_Citizen)
+round(prop.table(table(eligibility_2016$Overall_Citizen)),3)
+
+#region
+table(eligibility_2016$Overall_Region)
+round(prop.table(table(eligibility_2016$Overall_Region)),3)
+
+#HPD
+table(eligibility_2016$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+round(prop.table(table(eligibility_2016$HEALTH_PLANNING_DISTRICT, exclude = "ifany")), 3)
+
+#HPR
+table(eligibility_2016$HEALTH_PLANNING_REGION, exclude = "ifany")
+round(prop.table(table(eligibility_2016$HEALTH_PLANNING_REGION, exclude = "ifany")), 3)
+
+
+#months enrolled
+medata_2016 <- eligibility_2016[,grep(paste0(c("mco_beg1_2016",
+                                                    "mco_beg2_2016",
+                                                    "mco_beg3_2016",
+                                                    "mco_beg4_2016",
+                                                    "mco_end1_2016",
+                                                    "mco_end2_2016",
+                                                    "mco_end3_2016",
+                                                    "mco_end4_2016",
+                                                    "ffs_beg1_2016",
+                                                    "ffs_beg2_2016",
+                                                    "ffs_beg3_2016",
+                                                    "ffs_beg4_2016",
+                                                    "ffs_end1_2016",
+                                                    "ffs_end2_2016",
+                                                    "ffs_end3_2016",
+                                                    "ffs_end4_2016"), collapse = "|"), names(eligibility_2016))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2016$me_2016 <- apply(medata_2016, 1, myfunc)
+
+eligibility_2016$months_enrolled_2016 <- medata_2016$me_2016
+summary(eligibility_2016$months_enrolled_2016)
+mean(eligibility_2016$months_enrolled_2016)
+sd(eligibility_2016$months_enrolled_2016)
+
+#months enrolled category
+eligibility_2016$months_enrolled_cat_2016 <- ifelse(eligibility_2016$months_enrolled_2016 >= 3 & eligibility_2016$months_enrolled_2016 <= 6, "3 - 6 mos",
+                                          ifelse(eligibility_2016$months_enrolled_2016 > 6 & eligibility_2016$months_enrolled_2016 <= 9, "7 - 9 mos",
+                                                 ifelse(eligibility_2016$months_enrolled_2016 > 9 & eligibility_2016$months_enrolled_2016 <= 12, "9 - 12 mos", "< 3 mos")))
+eligibility_2016$months_enrolled_cat_2016 <- factor(eligibility_2016$months_enrolled_cat_2016, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(eligibility_2016$months_enrolled_cat_2016)
+round(prop.table(table(eligibility_2016$months_enrolled_cat_2016)),3)
+```
+
+## 2017
+
+```{r}
+eligibility_2017 <- eligibility[which(eligibility$FY2017==1),]
+
+#n
+dim(eligibility_2017)
+
+#only ffs
+length(eligibility_2017$BIRTH_ffs_2017[!is.na(eligibility_2017$BIRTH_ffs_2017) & is.na(eligibility_2017$BIRTH_mco_2017)])
+
+#only mco
+length(eligibility_2017$BIRTH_mco_2017[!is.na(eligibility_2017$BIRTH_mco_2017) & is.na(eligibility_2017$BIRTH_ffs_2017)])
+
+#both
+length(eligibility_2017$BIRTH_mco_2017[!is.na(eligibility_2017$BIRTH_mco_2017) & !is.na(eligibility_2017$BIRTH_ffs_2017)])
+
+#age
+mean(eligibility_2017$Overall_Age_at_earliest_enrollment)
+sd(eligibility_2017$Overall_Age_at_earliest_enrollment)
+
+#age category
+eligibility_2017$age_cat_2017 <- ifelse(eligibility_2017$Age_at_earliest_enrollment_2017 < 21, "<21",
+                                   ifelse(eligibility_2017$Age_at_earliest_enrollment_2017 >= 21 & eligibility_2017$Age_at_earliest_enrollment_2017 < 31, "21-30",
+                                          ifelse(eligibility_2017$Age_at_earliest_enrollment_2017 >= 31 & eligibility_2017$Age_at_earliest_enrollment_2017 < 41, "31-40",
+                                                 ifelse(eligibility_2017$Age_at_earliest_enrollment_2017 >= 41 & eligibility_2017$Age_at_earliest_enrollment_2017 < 51, "41-50", ">50"))))
+eligibility_2017$age_cat_2017 <- factor(eligibility_2017$age_cat_2017, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+table(eligibility_2017$age_cat_2017)
+round(prop.table(table(eligibility_2017$age_cat_2017)),3)
+
+#race
+table(eligibility_2017$Overall_Race)
+round(prop.table(table(eligibility_2017$Overall_Race)),3)
+
+#citizenship
+table(eligibility_2017$Overall_Citizen)
+round(prop.table(table(eligibility_2017$Overall_Citizen)),3)
+
+#region
+table(eligibility_2017$Overall_Region)
+round(prop.table(table(eligibility_2017$Overall_Region)),3)
+
+#HPD
+table(eligibility_2017$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+round(prop.table(table(eligibility_2017$HEALTH_PLANNING_DISTRICT, exclude = "ifany")), 3)
+
+#HPR
+table(eligibility_2017$HEALTH_PLANNING_REGION, exclude = "ifany")
+round(prop.table(table(eligibility_2017$HEALTH_PLANNING_REGION, exclude = "ifany")), 3)
+
+
+#months enrolled
+medata_2017 <- eligibility_2017[,grep(paste0(c("mco_beg1_2017",
+                                                    "mco_beg2_2017",
+                                                    "mco_beg3_2017",
+                                                    "mco_beg4_2017",
+                                                    "mco_end1_2017",
+                                                    "mco_end2_2017",
+                                                    "mco_end3_2017",
+                                                    "mco_end4_2017",
+                                                    "ffs_beg1_2017",
+                                                    "ffs_beg2_2017",
+                                                    "ffs_beg3_2017",
+                                                    "ffs_beg4_2017",
+                                                    "ffs_end1_2017",
+                                                    "ffs_end2_2017",
+                                                    "ffs_end3_2017",
+                                                    "ffs_end4_2017"), collapse = "|"), names(eligibility_2017))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2017$me_2017 <- apply(medata_2017, 1, myfunc)
+
+eligibility_2017$months_enrolled_2017 <- medata_2017$me_2017
+summary(eligibility_2017$months_enrolled_2017)
+mean(eligibility_2017$months_enrolled_2017)
+sd(eligibility_2017$months_enrolled_2017)
+
+#months enrolled category
+eligibility_2017$months_enrolled_cat_2017 <- ifelse(eligibility_2017$months_enrolled_2017 >= 3 & eligibility_2017$months_enrolled_2017 <= 6, "3 - 6 mos",
+                                          ifelse(eligibility_2017$months_enrolled_2017 > 6 & eligibility_2017$months_enrolled_2017 <= 9, "7 - 9 mos",
+                                                 ifelse(eligibility_2017$months_enrolled_2017 > 9 & eligibility_2017$months_enrolled_2017 <= 12, "9 - 12 mos", "< 3 mos")))
+eligibility_2017$months_enrolled_cat_2017 <- factor(eligibility_2017$months_enrolled_cat_2017, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(eligibility_2017$months_enrolled_cat_2017)
+round(prop.table(table(eligibility_2017$months_enrolled_cat_2017)),3)
+```
+
+## 2018
+
+```{r}
+eligibility_2018 <- eligibility[which(eligibility$FY2018==1),]
+
+#only ffs
+length(eligibility_2018$BIRTH_ffs_2018[!is.na(eligibility_2018$BIRTH_ffs_2018) & is.na(eligibility_2018$BIRTH_mco_2018)])
+
+#only mco
+length(eligibility_2018$BIRTH_mco_2018[!is.na(eligibility_2018$BIRTH_mco_2018) & is.na(eligibility_2018$BIRTH_ffs_2018)])
+
+#both
+length(eligibility_2018$BIRTH_mco_2018[!is.na(eligibility_2018$BIRTH_mco_2018) & !is.na(eligibility_2018$BIRTH_ffs_2018)])
+
+#n
+dim(eligibility_2018)
+
+#age
+mean(eligibility_2018$Overall_Age_at_earliest_enrollment)
+sd(eligibility_2018$Overall_Age_at_earliest_enrollment)
+
+#age category
+eligibility_2018$age_cat_2018 <- ifelse(eligibility_2018$Age_at_earliest_enrollment_2018 < 21, "<21",
+                                   ifelse(eligibility_2018$Age_at_earliest_enrollment_2018 >= 21 & eligibility_2018$Age_at_earliest_enrollment_2018 < 31, "21-30",
+                                          ifelse(eligibility_2018$Age_at_earliest_enrollment_2018 >= 31 & eligibility_2018$Age_at_earliest_enrollment_2018 < 41, "31-40",
+                                                 ifelse(eligibility_2018$Age_at_earliest_enrollment_2018 >= 41 & eligibility_2018$Age_at_earliest_enrollment_2018 < 51, "41-50", ">50"))))
+eligibility_2018$age_cat_2018 <- factor(eligibility_2018$age_cat_2018, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+table(eligibility_2018$age_cat_2018)
+round(prop.table(table(eligibility_2018$age_cat_2018)),3)
+
+#race
+table(eligibility_2018$Overall_Race)
+round(prop.table(table(eligibility_2018$Overall_Race)),3)
+
+#citizenship
+table(eligibility_2018$Overall_Citizen)
+round(prop.table(table(eligibility_2018$Overall_Citizen)),3)
+
+#region
+table(eligibility_2018$Overall_Region)
+round(prop.table(table(eligibility_2018$Overall_Region)),3)
+
+#HPD
+table(eligibility_2018$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+round(prop.table(table(eligibility_2018$HEALTH_PLANNING_DISTRICT, exclude = "ifany")), 3)
+
+#HPR
+table(eligibility_2018$HEALTH_PLANNING_REGION, exclude = "ifany")
+round(prop.table(table(eligibility_2018$HEALTH_PLANNING_REGION, exclude = "ifany")), 3)
+
+
+#months enrolled
+medata_2018 <- eligibility_2018[,grep(paste0(c("mco_beg1_2018",
+                                                    "mco_beg2_2018",
+                                                    "mco_beg3_2018",
+                                                    "mco_beg4_2018",
+                                                    "mco_end1_2018",
+                                                    "mco_end2_2018",
+                                                    "mco_end3_2018",
+                                                    "mco_end4_2018",
+                                                    "ffs_beg1_2018",
+                                                    "ffs_beg2_2018",
+                                                    "ffs_beg3_2018",
+                                                    "ffs_beg4_2018",
+                                                    "ffs_end1_2018",
+                                                    "ffs_end2_2018",
+                                                    "ffs_end3_2018",
+                                                    "ffs_end4_2018"), collapse = "|"), names(eligibility_2018))]
+
+myfunc <- function(x){
+  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
+  df2 <- df[order(df$X1, decreasing = FALSE),]
+  df3 <- df2[order(df2$X2, decreasing = TRUE),]
+  df4 <- df3[!duplicated(df3$X1),]
+  df5 <- df4[!duplicated(df4$X2),]
+  df6 <- na.omit(df5)
+  df7 <- df6 %>%
+    arrange(X1) %>% 
+    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
+                                  cummax(as.numeric(X2)))[-n()])) %>%
+    summarise(start = first(X1), end = last(X2))
+  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  return(me)
+}
+
+medata_2018$me_2018 <- apply(medata_2018, 1, myfunc)
+
+eligibility_2018$months_enrolled_2018 <- medata_2018$me_2018
+summary(eligibility_2018$months_enrolled_2018)
+mean(eligibility_2018$months_enrolled_2018)
+sd(eligibility_2018$months_enrolled_2018)
+
+#months enrolled category
+eligibility_2018$months_enrolled_cat_2018 <- ifelse(eligibility_2018$months_enrolled_2018 >= 3 & eligibility_2018$months_enrolled_2018 <= 6, "3 - 6 mos",
+                                          ifelse(eligibility_2018$months_enrolled_2018 > 6 & eligibility_2018$months_enrolled_2018 <= 9, "7 - 9 mos",
+                                                 ifelse(eligibility_2018$months_enrolled_2018 > 9 & eligibility_2018$months_enrolled_2018 <= 12, "9 - 12 mos", "< 3 mos")))
+eligibility_2018$months_enrolled_cat_2018 <- factor(eligibility_2018$months_enrolled_cat_2018, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(eligibility_2018$months_enrolled_cat_2018)
+round(prop.table(table(eligibility_2018$months_enrolled_cat_2018)),3)
+```
+

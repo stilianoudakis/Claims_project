@@ -1,0 +1,533 @@
+---
+title: "Dentistry Claims RA Project"
+subtitle: "Pregnancy Claims Data"
+author: "Spiro Stilianoudakis"
+date: "May 10, 2019"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in pregnancy claims data
+
+```{r}
+claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+                    sheet = "Pregnant_claims_2015_2018",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+claims <- claims[order(claims$SRECIP, decreasing = FALSE),]
+
+dim(claims)
+#184976     41
+
+length(unique(claims$SRECIP)) #17485
+length(unique(claims$CLAIM_NUMBER)) #64830
+```
+
+# Reading in cleaned eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+dim(eligibility) #103204    156
+```
+
+# Joining dental claims with eligibility data
+
+```{r}
+cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment")
+
+claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], by = c("SRECIP" = "srecip"))
+
+#remove claims that are not in eligibility
+claims <- claims[which(claims$SRECIP %in% eligibility$srecip),]
+dim(claims) #179518     47
+```
+
+# Creating variables
+
+```{r}
+#CDT code category
+##D0100-D0999 DIAGNOSTIC
+##D1000-D1999 PREVENTIVE
+##D2000-D2999 RESTORATIVE
+##D3000-D3999 ENDODONTICS
+##D4000-D4999 PERIODONTICS
+##D5000-D5899 PROSTHODONTICS
+##D5900-D5999 MAXILLOFACIAL PROSTHETICS
+##D6000-D6199 IMPLANT SERVICES
+##D6200-D6999 PROSTHODONTICS
+##D7000-D7999 ORAL & MAXILLOFACIAL SURGERY
+##D8000-D8999 ORTHODONTICS
+##D9000-D9999 ADJUNCTIVE GENERAL SERVICES
+
+claims$CDT_category <- ifelse(claims$proc_code %in% paste0(0,c(100:999)), "DIAGNOSTIC",
+                              ifelse(claims$proc_code %in% c(1000:1999), "PREVENTIVE",
+                                     ifelse(claims$proc_code %in% c(2000:2999), "RESTORATIVE",
+                                            ifelse(claims$proc_code %in% c(3000:3999), "ENDODONTICS",
+                                                   ifelse(claims$proc_code %in% c(4000:4999), "PERIODONTICS",
+                                                          ifelse(claims$proc_code %in% c(5000:5899), "PROSTHODONTICS", 
+                                                                 ifelse(claims$proc_code %in% c(5900:5999), "MAXILLOFACIAL PROSTHETICS",
+                                                                        ifelse(claims$proc_code %in% c(6000:6199), "IMPLANT SERVICES",
+                                                                               ifelse(claims$proc_code %in% c(6200:6999), "PROSTHODONTICS",
+                                                                                      ifelse(claims$proc_code %in% c(7000:7999), "ORAL & MAXILLOFACIAL SURGERY",
+                                                                                             ifelse(claims$proc_code %in% c(8000:8999), "ORTHODONTICS",
+                                                                                                    ifelse(claims$proc_code %in% c(9000:9999), "ADJUNCTIVE GENERAL SERVICES", "UNKNOWN"))))))))))))
+
+#create age category
+claims$age_cat <- ifelse(claims$age_at_procedure < 21, "<21",
+                                   ifelse(claims$age_at_procedure>= 21 & claims$age_at_procedure < 31, "21-30",
+                                          ifelse(claims$age_at_procedure >= 31 & claims$age_at_procedure < 41, "31-40",
+                                                 ifelse(claims$age_at_procedure >= 41 & claims$age_at_procedure < 51, "41-50", ">50"))))
+claims$age_cat <- factor(claims$age_cat, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+#create age category from eligibility
+claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 21, "<21",
+                                   ifelse(claims$Overall_Age_at_earliest_enrollment>= 21 & claims$Overall_Age_at_earliest_enrollment < 31, "21-30",
+                                          ifelse(claims$Overall_Age_at_earliest_enrollment >= 31 & claims$Overall_Age_at_earliest_enrollment < 41, "31-40",
+                                                 ifelse(claims$Overall_Age_at_earliest_enrollment >= 41 & claims$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
+claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+
+#race
+claims$Race[which(claims$Race=="American Indian or Alaskan Native" | claims$Race=="Asian or Pacific Islander")] <- "Native American/Asian"
+claims$Race[which(claims$Race=="Caucasian")] <- "White"
+claims$Race[which(claims$Race=="Other/Missing")] <- "Other"
+
+#FY
+claims$FY_2015 <- ifelse(claims$FY=="2015", 1, 0)
+claims$FY_2016 <- ifelse(claims$FY=="2016", 1, 0)
+claims$FY_2017 <- ifelse(claims$FY=="2017", 1, 0)
+claims$FY_2018 <- ifelse(claims$FY=="2018", 1, 0)
+
+
+```
+
+# Example of Duplicate Claim Numbers
+
+```{r}
+head(table(claims$CLAIM_NUMBER))
+#201506250785900 201506251954000 201506330015100 201506331570200 201506332414000 201506351462700 
+#              5               1               2               3               1               5 
+
+claims[which(claims$CLAIM_NUMBER=="201506250785900"),]
+
+```
+
+# Overall
+
+## Claim level data
+
+```{r}
+claim_level <- claims[!duplicated(claims[,c("CLAIM_NUMBER")]),]
+
+#total cost per claim
+totc <- claims[!duplicated(claims[,c("CLAIM_NUMBER", "proc_code")]), c("CLAIM_NUMBER", "AMOUNT_PAID")] %>%
+  dplyr::group_by(CLAIM_NUMBER) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+claim_level$Total_Cost <- totc$Total_Cost
+
+dim(claim_level)
+#62955    53
+
+#total cost per claim
+summary(claim_level$Total_Cost)
+mean(claim_level$Total_Cost)
+sd(claim_level$Total_Cost)
+
+
+#CDT
+table(claim_level$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level$CDT_category, exclude = "ifany")), 3)
+```
+
+
+## Patient level
+
+```{r}
+patient_level <- claims[!duplicated(claims[,c("SRECIP")]),]
+
+dim(patient_level)
+
+#age
+summary(patient_level$age_at_procedure)
+mean(patient_level$age_at_procedure)
+sd(patient_level$age_at_procedure)
+
+#age category
+table(patient_level$age_cat, exclude = "ifany")
+round(prop.table(table(patient_level$age_cat, exclude = "ifany")),3)
+
+#race
+table(patient_level$Race)
+round(prop.table(table(patient_level$Race)),3)
+
+#citizen
+table(patient_level$Overall_Citizen)
+round(prop.table(table(patient_level$Overall_Citizen)),3)
+
+#region
+table(patient_level$Overall_Region, exclude = "if any")
+round(prop.table(table(patient_level$Overall_Region, exclude = "if any")),3)
+
+#HPD
+table(patient_level$HEALTH_PLANNING_DISTRICT, exclude = "if any")
+round(prop.table(table(patient_level$HEALTH_PLANNING_DISTRICT, exclude = "if any")),3)
+
+#HPR
+table(patient_level$HEALTH_PLANNING_REGION, exclude = "if any")
+round(prop.table(table(patient_level$HEALTH_PLANNING_REGION, exclude = "if any")),3)
+
+#######################################################################################
+
+# Cross tabulating variables between claims and eligibility
+
+##age category
+table(patient_level$age_cat, patient_level$age_cat_eligibility)
+patient_level[which(patient_level$age_cat!=patient_level$age_cat_eligibility),c("CLAIM_NUMBER", "proc_code", "SRECIP", "age_at_procedure", "Overall_Age_at_earliest_enrollment", "age_cat", "age_cat_eligibility")]
+length(which(patient_level$age_cat!=patient_level$age_cat_eligibility))
+#745
+acdat <- patient_level[which(patient_level$age_cat!=patient_level$age_cat_eligibility),c("CLAIM_NUMBER", "proc_code", "SRECIP", "age_at_procedure", "Overall_Age_at_earliest_enrollment", "age_cat", "age_cat_eligibility")]
+hist(acdat$age_at_procedure-acdat$Overall_Age_at_earliest_enrollment)
+acdat[which(abs(acdat$age_at_procedure-acdat$Overall_Age_at_earliest_enrollment)>5),]
+
+## race
+table(patient_level$Race, patient_level$Overall_Race)
+patient_level[which(patient_level$Race!=patient_level$Overall_Race),c("CLAIM_NUMBER", "proc_code", "SRECIP", "Race", "Overall_Race")]
+length(which(patient_level$Race!=patient_level$Overall_Race))
+#1286
+```
+
+
+
+# 2015
+
+## Claim level
+
+```{r}
+claims_2015 <- claims[which(claims$FY_2015==1),]
+
+claim_level_2015 <- claims_2015[!duplicated(claims_2015[,c("CLAIM_NUMBER")]),]
+
+#total cost per claim
+totc <- claims_2015[!duplicated(claims_2015[,c("CLAIM_NUMBER", "proc_code")]), c("CLAIM_NUMBER", "AMOUNT_PAID")] %>%
+  dplyr::group_by(CLAIM_NUMBER) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+claim_level_2015$Total_Cost <- totc$Total_Cost
+
+dim(claim_level_2015)
+#4533   53
+
+#total cost per claim
+summary(claim_level_2015$Total_Cost)
+mean(claim_level_2015$Total_Cost)
+sd(claim_level_2015$Total_Cost)
+
+
+#CDT
+table(claim_level_2015$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2015$CDT_category, exclude = "ifany")), 3)
+
+```
+
+
+## Patient level
+
+```{r}
+patient_2015 <- claims[which(claims$FY_2015==1),]
+
+patient_level_2015 <- patient_2015[!duplicated(patient_2015[,c("SRECIP")]),]
+
+#age
+summary(patient_level_2015$age_at_procedure)
+mean(patient_level_2015$age_at_procedure)
+sd(patient_level_2015$age_at_procedure)
+
+#age category
+table(patient_level_2015$age_cat, exclude = "ifany")
+round(prop.table(table(patient_level_2015$age_cat, exclude = "ifany")),3)
+
+#race
+table(patient_level_2015$Race)
+round(prop.table(table(patient_level_2015$Race)),3)
+
+#citizen
+table(patient_level_2015$Overall_Citizen)
+round(prop.table(table(patient_level_2015$Overall_Citizen)),3)
+
+#region
+table(patient_level_2015$Overall_Region, exclude = "if any")
+round(prop.table(table(patient_level_2015$Overall_Region, exclude = "if any")),3)
+
+#HPD
+table(patient_level_2015$HEALTH_PLANNING_DISTRICT, exclude = "if any")
+round(prop.table(table(patient_level_2015$HEALTH_PLANNING_DISTRICT, exclude = "if any")),3)
+
+#HPR
+table(patient_level_2015$HEALTH_PLANNING_REGION, exclude = "if any")
+round(prop.table(table(patient_level_2015$HEALTH_PLANNING_REGION, exclude = "if any")),3)
+
+```
+
+
+# 2016
+
+## Claim level
+
+```{r}
+claims_2016 <- claims[which(claims$FY_2016==1),]
+
+claim_level_2016 <- claims_2016[!duplicated(claims_2016[,c("CLAIM_NUMBER")]),]
+
+#total cost per claim
+totc <- claims_2016[!duplicated(claims_2016[,c("CLAIM_NUMBER", "proc_code")]), c("CLAIM_NUMBER", "AMOUNT_PAID")] %>%
+  dplyr::group_by(CLAIM_NUMBER) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+claim_level_2016$Total_Cost <- totc$Total_Cost
+
+dim(claim_level_2016)
+#16602    53
+
+#total cost per claim
+summary(claim_level_2016$Total_Cost)
+mean(claim_level_2016$Total_Cost)
+sd(claim_level_2016$Total_Cost)
+
+
+#CDT
+table(claim_level_2016$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2016$CDT_category, exclude = "ifany")), 3)
+
+```
+
+
+## Patient level
+
+```{r}
+patient_2016 <- claims[which(claims$FY_2016==1),]
+
+patient_level_2016 <- patient_2016[!duplicated(patient_2016[,c("SRECIP")]),]
+
+#age
+summary(patient_level_2016$age_at_procedure)
+mean(patient_level_2016$age_at_procedure)
+sd(patient_level_2016$age_at_procedure)
+
+#age category
+table(patient_level_2016$age_cat, exclude = "ifany")
+round(prop.table(table(patient_level_2016$age_cat, exclude = "ifany")),3)
+
+#race
+table(patient_level_2016$Race)
+round(prop.table(table(patient_level_2016$Race)),3)
+
+#citizen
+table(patient_level_2016$Overall_Citizen)
+round(prop.table(table(patient_level_2016$Overall_Citizen)),3)
+
+#region
+table(patient_level_2016$Overall_Region, exclude = "if any")
+round(prop.table(table(patient_level_2016$Overall_Region, exclude = "if any")),3)
+
+#HPD
+table(patient_level_2016$HEALTH_PLANNING_DISTRICT, exclude = "if any")
+round(prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT, exclude = "if any")),3)
+
+#HPR
+table(patient_level_2016$HEALTH_PLANNING_REGION, exclude = "if any")
+round(prop.table(table(patient_level_2016$HEALTH_PLANNING_REGION, exclude = "if any")),3)
+
+```
+
+
+# 2017
+
+## Claim level
+
+```{r}
+claims_2017 <- claims[which(claims$FY_2017==1),]
+
+claim_level_2017 <- claims_2017[!duplicated(claims_2017[,c("CLAIM_NUMBER")]),]
+
+#total cost per claim
+totc <- claims_2017[!duplicated(claims_2017[,c("CLAIM_NUMBER", "proc_code")]), c("CLAIM_NUMBER", "AMOUNT_PAID")] %>%
+  dplyr::group_by(CLAIM_NUMBER) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+claim_level_2017$Total_Cost <- totc$Total_Cost
+
+dim(claim_level_2017)
+#21649    53
+
+#total cost per claim
+summary(claim_level_2017$Total_Cost)
+mean(claim_level_2017$Total_Cost)
+sd(claim_level_2017$Total_Cost)
+
+
+#CDT
+table(claim_level_2017$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2017$CDT_category, exclude = "ifany")), 3)
+
+```
+
+
+## Patient level
+
+```{r}
+patient_2017 <- claims[which(claims$FY_2017==1),]
+
+patient_level_2017 <- patient_2017[!duplicated(patient_2017[,c("SRECIP")]),]
+
+#age
+summary(patient_level_2017$age_at_procedure)
+mean(patient_level_2017$age_at_procedure)
+sd(patient_level_2017$age_at_procedure)
+
+#age category
+table(patient_level_2017$age_cat, exclude = "ifany")
+round(prop.table(table(patient_level_2017$age_cat, exclude = "ifany")),3)
+
+#race
+table(patient_level_2017$Race)
+round(prop.table(table(patient_level_2017$Race)),3)
+
+#citizen
+table(patient_level_2017$Overall_Citizen)
+round(prop.table(table(patient_level_2017$Overall_Citizen)),3)
+
+#region
+table(patient_level_2017$Overall_Region, exclude = "if any")
+round(prop.table(table(patient_level_2017$Overall_Region, exclude = "if any")),3)
+
+#HPD
+table(patient_level_2017$HEALTH_PLANNING_DISTRICT, exclude = "if any")
+round(prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT, exclude = "if any")),3)
+
+#HPR
+table(patient_level_2017$HEALTH_PLANNING_REGION, exclude = "if any")
+round(prop.table(table(patient_level_2017$HEALTH_PLANNING_REGION, exclude = "if any")),3)
+
+```
+
+
+# 2018
+
+## Claim level
+
+```{r}
+claims_2018 <- claims[which(claims$FY_2018==1),]
+
+claim_level_2018 <- claims_2018[!duplicated(claims_2018[,c("CLAIM_NUMBER")]),]
+
+#total cost per claim
+totc <- claims_2018[!duplicated(claims_2018[,c("CLAIM_NUMBER", "proc_code")]), c("CLAIM_NUMBER", "AMOUNT_PAID")] %>%
+  dplyr::group_by(CLAIM_NUMBER) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+claim_level_2018$Total_Cost <- totc$Total_Cost
+
+dim(claim_level_2018)
+#22076    53
+
+#total cost per claim
+summary(claim_level_2018$Total_Cost)
+mean(claim_level_2018$Total_Cost)
+sd(claim_level_2018$Total_Cost)
+
+
+#CDT
+table(claim_level_2018$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2018$CDT_category, exclude = "ifany")), 3)
+
+```
+
+
+## Patient level
+
+```{r}
+patient_2018 <- claims[which(claims$FY_2018==1),]
+
+patient_level_2018 <- patient_2018[!duplicated(patient_2018[,c("SRECIP")]),]
+
+#age
+summary(patient_level_2018$age_at_procedure)
+mean(patient_level_2018$age_at_procedure)
+sd(patient_level_2018$age_at_procedure)
+
+#age category
+table(patient_level_2018$age_cat, exclude = "ifany")
+round(prop.table(table(patient_level_2018$age_cat, exclude = "ifany")),3)
+
+#race
+table(patient_level_2018$Race)
+round(prop.table(table(patient_level_2018$Race)),3)
+
+#citizen
+table(patient_level_2018$Overall_Citizen)
+round(prop.table(table(patient_level_2018$Overall_Citizen)),3)
+
+#region
+table(patient_level_2018$Overall_Region, exclude = "if any")
+round(prop.table(table(patient_level_2018$Overall_Region, exclude = "if any")),3)
+
+#HPD
+table(patient_level_2018$HEALTH_PLANNING_DISTRICT, exclude = "if any")
+round(prop.table(table(patient_level_2018$HEALTH_PLANNING_DISTRICT, exclude = "if any")),3)
+
+#HPR
+table(patient_level_2018$HEALTH_PLANNING_REGION, exclude = "if any")
+round(prop.table(table(patient_level_2018$HEALTH_PLANNING_REGION, exclude = "if any")),3)
+
+```
+
+# Intersection of claim numbers across years
+
+```{r}
+length(intersect(claim_level_2015$CLAIM_NUMBER, claim_level_2016$CLAIM_NUMBER)) #14
+length(intersect(claim_level_2015$CLAIM_NUMBER, claim_level_2017$CLAIM_NUMBER)) #0
+length(intersect(claim_level_2015$CLAIM_NUMBER, claim_level_2018$CLAIM_NUMBER)) #0
+
+length(intersect(claim_level_2016$CLAIM_NUMBER, claim_level_2017$CLAIM_NUMBER)) #5
+length(intersect(claim_level_2016$CLAIM_NUMBER, claim_level_2018$CLAIM_NUMBER)) #0
+
+length(intersect(claim_level_2017$CLAIM_NUMBER, claim_level_2018$CLAIM_NUMBER)) #11
+```
+
+# Intersection of srecip across years
+
+```{r}
+length(intersect(patient_level_2015$SRECIP, patient_level_2016$SRECIP)) #602
+length(intersect(patient_level_2015$SRECIP, patient_level_2017$SRECIP)) #88
+length(intersect(patient_level_2015$SRECIP, patient_level_2018$SRECIP)) #81
+
+length(intersect(patient_level_2016$SRECIP, patient_level_2017$SRECIP)) #964
+length(intersect(patient_level_2016$SRECIP, patient_level_2018$SRECIP)) #281
+
+length(intersect(patient_level_2017$SRECIP, patient_level_2018$SRECIP)) #1108
+```
+

@@ -1,0 +1,778 @@
+---
+title: "Identifying Unique Claims"
+author: "Spiro Stilianoudakis"
+date: "August 19, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in pregnancy claims data
+
+```{r}
+claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+                    sheet = "Pregnant_claims_2015_2018",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+claims <- claims[order(claims$SRECIP, decreasing = FALSE),]
+
+dim(claims)
+#184976     41
+
+length(unique(claims$SRECIP)) #17485
+length(unique(claims$CLAIM_NUMBER)) #64830
+```
+
+# Reading in cleaned eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+dim(eligibility) #103204    156
+```
+
+# Joining dental claims with eligibility data
+
+```{r}
+cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment")
+
+claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], by = c("SRECIP" = "srecip"))
+
+#remove claims that are not in eligibility
+claims <- claims[which(claims$SRECIP %in% eligibility$srecip),]
+dim(claims) #179518     47
+
+#creating variables
+#race
+claims$Race[which(claims$Race=="American Indian or Alaskan Native" | claims$Race=="Asian or Pacific Islander")] <- "Native American/Asian"
+claims$Race[which(claims$Race=="Caucasian")] <- "White"
+claims$Race[which(claims$Race=="Other/Missing")] <- "Other"
+
+#FY
+claims$FY_2015 <- ifelse(claims$FY=="2015", 1, 0)
+claims$FY_2016 <- ifelse(claims$FY=="2016", 1, 0)
+claims$FY_2017 <- ifelse(claims$FY=="2017", 1, 0)
+claims$FY_2018 <- ifelse(claims$FY=="2018", 1, 0)
+
+#create age category from eligibility
+claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 21, "<21",
+                                   ifelse(claims$Overall_Age_at_earliest_enrollment>= 21 & claims$Overall_Age_at_earliest_enrollment < 31, "21-30",
+                                          ifelse(claims$Overall_Age_at_earliest_enrollment >= 31 & claims$Overall_Age_at_earliest_enrollment < 41, "31-40",
+                                                 ifelse(claims$Overall_Age_at_earliest_enrollment >= 41 & claims$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
+claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+##D0100-D0999 DIAGNOSTIC
+##D1000-D1999 PREVENTIVE
+##D2000-D2999 RESTORATIVE
+##D3000-D3999 ENDODONTICS
+##D4000-D4999 PERIODONTICS
+##D5000-D5899 PROSTHODONTICS
+##D5900-D5999 MAXILLOFACIAL PROSTHETICS
+##D6000-D6199 IMPLANT SERVICES
+##D6200-D6999 PROSTHODONTICS
+##D7000-D7999 ORAL & MAXILLOFACIAL SURGERY
+##D8000-D8999 ORTHODONTICS
+##D9000-D9999 ADJUNCTIVE GENERAL SERVICES
+
+claims$CDT_category <- ifelse(claims$proc_code %in% paste0(0,c(100:999)), "DIAGNOSTIC",
+                              ifelse(claims$proc_code %in% c(1000:1999), "PREVENTIVE",
+                                     ifelse(claims$proc_code %in% c(2000:2999), "RESTORATIVE",
+                                            ifelse(claims$proc_code %in% c(3000:3999), "ENDODONTICS",
+                                                   ifelse(claims$proc_code %in% c(4000:4999), "PERIODONTICS",
+                                                          ifelse(claims$proc_code %in% c(5000:5899), "PROSTHODONTICS", 
+                                                                 ifelse(claims$proc_code %in% c(5900:5999), "MAXILLOFACIAL PROSTHETICS",
+                                                                        ifelse(claims$proc_code %in% c(6000:6199), "IMPLANT SERVICES",
+                                                                               ifelse(claims$proc_code %in% c(6200:6999), "PROSTHODONTICS",
+                                                                                      ifelse(claims$proc_code %in% c(7000:7999), "ORAL & MAXILLOFACIAL SURGERY",
+                                                                                             ifelse(claims$proc_code %in% c(8000:8999), "ORTHODONTICS",
+                                                                                                    ifelse(claims$proc_code %in% c(9000:9999), "ADJUNCTIVE GENERAL SERVICES", "UNKNOWN"))))))))))))
+
+```
+
+# Identifying unique claims
+
+## Claims with tooth number
+
+### Removing duplicates based on: claim #, proc code, service date, tooth number
+
+```{r}
+claims_tooth <- claims[!is.na(claims$Tooth_Number),]
+dim(claims_tooth) #118618     53
+table(claims_tooth$Tooth_Number, exclude = "ifany")
+
+claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE),]
+
+head(claims_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
+
+claims_nodup_tooth <- claims_tooth[!(duplicated(claims_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "Tooth_Number")])),]
+dim(claims_nodup_tooth) #118616    53
+
+```
+
+
+## Claims with no tooth number
+
+### Removing duplicates based on: claim #, proc code, service date, amount paid
+
+```{r}
+claims_no_tooth <- claims[is.na(claims$Tooth_Number),]
+dim(claims_no_tooth) #60900    53
+table(claims_no_tooth$Tooth_Number, exclude = "ifany")
+
+claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasing = TRUE),]
+
+head(claims_no_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
+
+claims_nodup_no_tooth <- claims_no_tooth[!(duplicated(claims_no_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "AMOUNT_PAID")])),]
+dim(claims_nodup_no_tooth) #60900    53
+
+```
+
+## Combining the two data sets
+
+```{r}
+unique_claims <- rbind.data.frame(claims_nodup_no_tooth, claims_nodup_tooth)
+dim(unique_claims) #179516     53
+
+```
+
+# Claim level data
+
+```{r}
+claim_level <- unique_claims[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")]
+
+claim_level <- claim_level[order(claim_level$CLAIM_NUMBER, decreasing = TRUE),]
+
+```
+
+## Overall
+
+```{r}
+#total number
+dim(claim_level)
+
+#cdt category
+table(claim_level$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level$CDT_category, exclude = "ifany")), 3)
+```
+
+## 2015
+
+```{r}
+claim_level_2015 <- claim_level[which(claim_level$FY_2015==1),]
+ 
+#total number
+dim(claim_level_2015)
+
+#cdt category
+table(claim_level_2015$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2015$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2016
+
+```{r}
+claim_level_2016 <- claim_level[which(claim_level$FY_2016==1),]
+ 
+#total number
+dim(claim_level_2016)
+
+#cdt category
+table(claim_level_2016$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2016$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2017
+
+```{r}
+claim_level_2017 <- claim_level[which(claim_level$FY_2017==1),]
+ 
+#total number
+dim(claim_level_2017)
+
+#cdt category
+table(claim_level_2017$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2017$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2018
+
+```{r}
+claim_level_2018 <- claim_level[which(claim_level$FY_2018==1),]
+ 
+#total number
+dim(claim_level_2018)
+
+#cdt category
+table(claim_level_2018$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2018$CDT_category, exclude = "ifany")), 3)
+
+```
+
+# Unique claim level data
+
+```{r}
+claim_level_no_dup <- claim_level[!duplicated(claim_level$CLAIM_NUMBER),]
+dim(claim_level_no_dup) #62955
+```
+
+## Overall
+
+```{r}
+#total number
+dim(claim_level_no_dup)
+
+#cdt category
+table(claim_level_no_dup$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_no_dup$CDT_category, exclude = "ifany")), 3)
+```
+
+## 2015
+
+```{r}
+claim_level_no_dup_2015 <- claim_level_no_dup[which(claim_level_no_dup$FY_2015==1),]
+ 
+#total number
+dim(claim_level_no_dup_2015)
+
+#cdt category
+table(claim_level_no_dup_2015$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_no_dup_2015$CDT_category, exclude = "ifany")), 3)
+```
+
+## 2016
+
+```{r}
+claim_level_no_dup_2016 <- claim_level_no_dup[which(claim_level_no_dup$FY_2016==1),]
+ 
+#total number
+dim(claim_level_no_dup_2016)
+
+#cdt category
+table(claim_level_no_dup_2016$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_no_dup_2016$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2017
+
+```{r}
+claim_level_no_dup_2017 <- claim_level_no_dup[which(claim_level_no_dup$FY_2017==1),]
+ 
+#total number
+dim(claim_level_no_dup_2017)
+
+#cdt category
+table(claim_level_no_dup_2017$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_no_dup_2017$CDT_category, exclude = "ifany")), 3)
+```
+
+## 2018
+
+```{r}
+claim_level_no_dup_2018 <- claim_level_no_dup[which(claim_level_no_dup$FY_2018==1),]
+ 
+#total number
+dim(claim_level_no_dup_2018)
+
+#cdt category
+table(claim_level_no_dup_2018$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_no_dup_2018$CDT_category, exclude = "ifany")), 3)
+```
+
+
+# Patient level data
+
+```{r}
+patient_level <- unique_claims[!duplicated(unique_claims[,c("SRECIP")]),]
+dim(patient_level) #16891    52
+
+#Number of claims per patient
+num_claims <- unique_claims %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+
+#Number of visits  per patient
+num_visits <- unique_claims[!duplicated(unique_claims[,c("SRECIP","SERVICE_DATE")]),] %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+
+#Total Cost per patient 
+totc <- unique_claims %>%
+  dplyr::group_by(SRECIP) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+
+patient_level$Num_claims <- num_claims$n
+patient_level$Num_visits <- num_visits$n
+patient_level$Total_cost <- totc$Total_Cost
+
+```
+
+## Overall
+
+```{r}
+dim(patient_level)
+
+#Number of claims per patient
+mean(patient_level$Num_claims)
+sd(patient_level$Num_claims)
+
+#Number of visits per patient
+mean(patient_level$Num_visits)
+sd(patient_level$Num_visits)
+
+#Costs per patient
+mean(patient_level$Total_cost)
+sd(patient_level$Total_cost)
+
+#age
+
+#age category
+
+#race
+
+#citizenship
+
+#region
+
+#hpd
+
+#hpr
+```
+
+
+## 2015
+
+```{r}
+patient_level_2015 <- patient_level[which(patient_level$FY_2015==1),]
+dim(patient_level_2015)
+
+#Number of claims per patient
+mean(patient_level_2015$Num_claims)
+sd(patient_level_2015$Num_claims)
+
+#Number of visits per patient
+mean(patient_level_2015$Num_visits)
+sd(patient_level_2015$Num_visits)
+
+#Costs per patient
+mean(patient_level_2015$Total_cost)
+sd(patient_level_2015$Total_cost)
+
+#age
+mean(patient_level_2015$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2015$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2015$age_cat_eligibility, exclude = "ifany")
+prop.table(table(patient_level_2015$age_cat_eligibility, exclude = "ifany"))
+
+#race
+table(patient_level_2015$Overall_Race, exclude = "ifany")
+prop.table(table(patient_level_2015$Overall_Race, exclude = "ifany"))
+
+#citizenship
+table(patient_level_2015$Overall_Citizen, exclude = "ifany")
+prop.table(table(patient_level_2015$Overall_Citizen, exclude = "ifany"))
+
+#region
+table(patient_level_2015$Overall_Region, exclude = "ifany")
+prop.table(table(patient_level_2015$Overall_Region, exclude = "ifany"))
+
+#hpd
+table(patient_level_2015$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+prop.table(table(patient_level_2015$HEALTH_PLANNING_DISTRICT, exclude = "ifany"))
+
+#hpr
+table(patient_level_2015$HEALTH_PLANNING_REGION, exclude = "ifany")
+prop.table(table(patient_level_2015$HEALTH_PLANNING_REGION, exclude = "ifany"))
+
+
+```
+
+
+## 2016
+
+```{r}
+patient_level_2016 <- patient_level[which(patient_level$FY_2016==1),]
+dim(patient_level_2016)
+
+#Number of claims per patient
+mean(patient_level_2016$Num_claims)
+sd(patient_level_2016$Num_claims)
+
+#Number of visits per patient
+mean(patient_level_2016$Num_visits)
+sd(patient_level_2016$Num_visits)
+
+#Costs per patient
+mean(patient_level_2016$Total_cost)
+sd(patient_level_2016$Total_cost)
+
+#age
+mean(patient_level_2016$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2016$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2016$age_cat_eligibility, exclude = "ifany")
+prop.table(table(patient_level_2016$age_cat_eligibility, exclude = "ifany"))
+
+#race
+table(patient_level_2016$Overall_Race, exclude = "ifany")
+prop.table(table(patient_level_2016$Overall_Race, exclude = "ifany"))
+
+#citizenship
+table(patient_level_2016$Overall_Citizen, exclude = "ifany")
+prop.table(table(patient_level_2016$Overall_Citizen, exclude = "ifany"))
+
+#region
+table(patient_level_2016$Overall_Region, exclude = "ifany")
+prop.table(table(patient_level_2016$Overall_Region, exclude = "ifany"))
+
+#hpd
+table(patient_level_2016$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT, exclude = "ifany"))
+
+#hpr
+table(patient_level_2016$HEALTH_PLANNING_REGION, exclude = "ifany")
+prop.table(table(patient_level_2016$HEALTH_PLANNING_REGION, exclude = "ifany"))
+
+
+
+```
+
+
+## 2017
+
+```{r}
+patient_level_2017 <- patient_level[which(patient_level$FY_2017==1),]
+dim(patient_level_2017)
+
+#Number of claims per patient
+mean(patient_level_2017$Num_claims)
+sd(patient_level_2017$Num_claims)
+
+#Number of visits per patient
+mean(patient_level_2017$Num_visits)
+sd(patient_level_2017$Num_visits)
+
+#Costs per patient
+mean(patient_level_2017$Total_cost)
+sd(patient_level_2017$Total_cost)
+
+#age
+mean(patient_level_2017$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2017$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2017$age_cat_eligibility, exclude = "ifany")
+prop.table(table(patient_level_2017$age_cat_eligibility, exclude = "ifany"))
+
+#race
+table(patient_level_2017$Overall_Race, exclude = "ifany")
+prop.table(table(patient_level_2017$Overall_Race, exclude = "ifany"))
+
+#citizenship
+table(patient_level_2017$Overall_Citizen, exclude = "ifany")
+prop.table(table(patient_level_2017$Overall_Citizen, exclude = "ifany"))
+
+#region
+table(patient_level_2017$Overall_Region, exclude = "ifany")
+prop.table(table(patient_level_2017$Overall_Region, exclude = "ifany"))
+
+#hpd
+table(patient_level_2017$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT, exclude = "ifany"))
+
+#hpr
+table(patient_level_2017$HEALTH_PLANNING_REGION, exclude = "ifany")
+prop.table(table(patient_level_2017$HEALTH_PLANNING_REGION, exclude = "ifany"))
+
+
+```
+
+
+## 2018
+
+```{r}
+patient_level_2018 <- patient_level[which(patient_level$FY_2018==1),]
+dim(patient_level_2018)
+
+#Number of claims per patient
+mean(patient_level_2018$Num_claims)
+sd(patient_level_2018$Num_claims)
+
+#Number of visits per patient
+mean(patient_level_2018$Num_visits)
+sd(patient_level_2018$Num_visits)
+
+#Costs per patient
+mean(patient_level_2018$Total_cost)
+sd(patient_level_2018$Total_cost)
+
+#age
+mean(patient_level_2018$Overall_Age_at_earliest_enrollment)
+sd(patient_level_2018$Overall_Age_at_earliest_enrollment)
+
+#age category
+table(patient_level_2018$age_cat_eligibility, exclude = "ifany")
+prop.table(table(patient_level_2018$age_cat_eligibility, exclude = "ifany"))
+
+#race
+table(patient_level_2018$Overall_Race, exclude = "ifany")
+prop.table(table(patient_level_2018$Overall_Race, exclude = "ifany"))
+
+#citizenship
+table(patient_level_2018$Overall_Citizen, exclude = "ifany")
+prop.table(table(patient_level_2018$Overall_Citizen, exclude = "ifany"))
+
+#region
+table(patient_level_2018$Overall_Region, exclude = "ifany")
+prop.table(table(patient_level_2018$Overall_Region, exclude = "ifany"))
+
+#hpd
+table(patient_level_2018$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+prop.table(table(patient_level_2018$HEALTH_PLANNING_DISTRICT, exclude = "ifany"))
+
+#hpr
+table(patient_level_2018$HEALTH_PLANNING_REGION, exclude = "ifany")
+prop.table(table(patient_level_2018$HEALTH_PLANNING_REGION, exclude = "ifany"))
+
+
+```
+
+
+# Provider Level data
+
+```{r}
+#finding number of invalid provider ids
+head(table(sort(unique_claims$billing_prov_NPI)))
+#         . 1003005547 1003088030 1003095266 1003240276 1003251992 
+#       684        112       1380          6          5        120 
+
+#break up billing provider name into first and last
+providers <- extract(unique_claims, BillIng_Provider_name, c("ProviderLastName", "ProviderFirstName"), "([^ ]+) (.*)")
+providers$ProviderFirstName <- toupper(providers$ProviderFirstName)
+providers$ProviderLastName <- toupper(providers$ProviderLastName)
+
+head(providers[which(providers$billing_prov_NPI=="         ."), c("CLAIM_NUMBER", "AMOUNT_PAID", "proc_code", "new_service_date", "SRECIP", "SERVICING_PROVIDER_NPI", "billing_prov_NPI", "ProviderFirstName", "ProviderLastName")])
+
+invalid_npi <- providers[which(providers$billing_prov_NPI=="         ."), c("CLAIM_NUMBER", "AMOUNT_PAID", "proc_code", "new_service_date", "SRECIP", "SERVICING_PROVIDER_NPI", "billing_prov_NPI", "ProviderFirstName", "ProviderLastName")]
+
+table(invalid_npi$ProviderFirstName, exclude = "ifany")
+table(invalid_npi$ProviderLastName, exclude = "ifany")
+
+#fill in missing billing provider npi using name joined from all_dental_providers
+
+all_dental_providers <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/all_dental_providers.xlsx",
+                    sheet = "all_dental_providers",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+dim(all_dental_providers)
+#24208    10
+
+all_dental_providers <- all_dental_providers[order(all_dental_providers$PTL_NPI_ID),]
+all_dental_providers <- all_dental_providers[!duplicated(all_dental_providers[,2:3]),]
+dim(all_dental_providers)
+#6914   10
+
+providers2 <- left_join(providers, all_dental_providers[,1:3], by = c("ProviderFirstName" = "PTL_P_FIRST", "ProviderLastName" = "PTL_P_LAST"))
+dim(providers2)
+#179516     55
+
+providers2$billing_prov_NPI[which(providers2$billing_prov_NPI=="         ." & !is.na(providers2$PTL_NPI_ID))] <- providers2$PTL_NPI_ID[which(providers2$billing_prov_NPI=="         ." & !is.na(providers2$PTL_NPI_ID))]
+
+
+length(which(providers2$billing_prov_NPI=="         .")) #85
+
+#remove missing provider ids
+providers2 <- providers2[-which(providers2$billing_prov_NPI=="         ."),]
+dim(providers2) #179431    55
+
+#some billing ids don't match between claims and provider data sets
+providers2[which(providers2$ProviderFirstName=="SEBASTIAN" & providers2$ProviderLastName=="BOURONCLE"),c("ProviderFirstName", "ProviderLastName", "billing_prov_NPI", "PTL_NPI_ID")]
+##Ex. SEBASTIAN        BOURONCLE; 1740667799 1932245511
+##this person actually has two provider ids in the provider dataset
+
+provider_level <- providers2[!duplicated(providers2$billing_prov_NPI),]
+```
+
+
+## Overall
+
+```{r}
+#unique providers
+dim(provider_level) 
+
+#Number of patients per provider
+num_pats <- providers2 %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+mean(num_pats$n)
+sd(num_pats$n)
+
+#Cost of services per provider
+totc <- providers2 %>%
+  dplyr::group_by(billing_prov_NPI) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+mean(totc$Total_Cost)
+sd(totc$Total_Cost)
+ggplot()+geom_histogram(aes(totc$Total_Cost), bins = 50)+
+  scale_x_continuous(breaks=c(0,200000,400000,600000),
+                     labels=c("0","200000", "400000", "600000"))+
+  xlab("Cost of Services per Provider")+
+  ylab("Count")+
+  theme_bw()
+
+```
+
+## 2015
+
+```{r}
+provider_level_2015 <- provider_level[which(provider_level$FY_2015==1),]
+
+#Number of unique providers
+dim(provider_level_2015)
+
+#Number of patients per provider
+num_pats <- providers2[which(providers2$FY_2015==1),] %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+mean(num_pats$n)
+sd(num_pats$n)
+
+#Cost of services per provider
+totc <- providers2[which(providers2$FY_2015==1),] %>%
+  dplyr::group_by(billing_prov_NPI) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+mean(totc$Total_Cost)
+sd(totc$Total_Cost)
+ggplot()+geom_histogram(aes(totc$Total_Cost), bins = 50)+
+  #scale_x_continuous(breaks=c(0,200000,400000,600000),
+  #                   labels=c("0","200000", "400000", "600000"))+
+  xlab("Cost of Services per Provider")+
+  ylab("Count")+
+  theme_bw()
+
+```
+
+## 2016
+
+```{r}
+provider_level_2016 <- provider_level[which(provider_level$FY_2016==1),]
+
+#Number of unique providers
+dim(provider_level_2016)
+
+#Number of patients per provider
+num_pats <- providers2[which(providers2$FY_2016==1),] %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+mean(num_pats$n)
+sd(num_pats$n)
+
+#Cost of services per provider
+totc <- providers2[which(providers2$FY_2016==1),] %>%
+  dplyr::group_by(billing_prov_NPI) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+mean(totc$Total_Cost)
+sd(totc$Total_Cost)
+ggplot()+geom_histogram(aes(totc$Total_Cost), bins = 50)+
+  #scale_x_continuous(breaks=c(0,200000,400000,600000),
+  #                   labels=c("0","200000", "400000", "600000"))+
+  xlab("Cost of Services per Provider")+
+  ylab("Count")+
+  theme_bw()
+
+```
+
+
+## 2017
+
+```{r}
+provider_level_2017 <- provider_level[which(provider_level$FY_2017==1),]
+
+#Number of unique providers
+dim(provider_level_2017)
+
+#Number of patients per provider
+num_pats <- providers2[which(providers2$FY_2017==1),] %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+mean(num_pats$n)
+sd(num_pats$n)
+
+#Cost of services per provider
+totc <- providers2[which(providers2$FY_2017==1),] %>%
+  dplyr::group_by(billing_prov_NPI) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+mean(totc$Total_Cost)
+sd(totc$Total_Cost)
+ggplot()+geom_histogram(aes(totc$Total_Cost), bins = 50)+
+  #scale_x_continuous(breaks=c(0,200000,400000,600000),
+  #                   labels=c("0","200000", "400000", "600000"))+
+  xlab("Cost of Services per Provider")+
+  ylab("Count")+
+  theme_bw()
+
+```
+
+
+## 2018
+
+```{r}
+provider_level_2018 <- provider_level[which(provider_level$FY_2018==1),]
+
+#Number of unique providers
+dim(provider_level_2018)
+
+#Number of patients per provider
+num_pats <- providers2[which(providers2$FY_2018==1),] %>% 
+  dplyr::group_by(SRECIP) %>%
+  dplyr::count()
+mean(num_pats$n)
+sd(num_pats$n)
+
+#Cost of services per provider
+totc <- providers2[which(providers2$FY_2018==1),] %>%
+  dplyr::group_by(billing_prov_NPI) %>%
+  dplyr::summarize(Total_Cost = sum(as.numeric(AMOUNT_PAID)))
+mean(totc$Total_Cost)
+sd(totc$Total_Cost)
+ggplot()+geom_histogram(aes(totc$Total_Cost), bins = 50)+
+  #scale_x_continuous(breaks=c(0,200000,400000,600000),
+  #                   labels=c("0","200000", "400000", "600000"))+
+  xlab("Cost of Services per Provider")+
+  ylab("Count")+
+  theme_bw()
+
+```
+

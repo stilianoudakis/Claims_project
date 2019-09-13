@@ -1,0 +1,176 @@
+---
+title: "Identifying unique claims"
+author: "Spiro Stilianoudakis"
+date: "9/6/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in pregnancy claims data
+
+```{r}
+claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+                    sheet = "Pregnant_claims_2015_2018",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+claims <- claims[order(claims$SRECIP, decreasing = FALSE),]
+
+dim(claims)
+#184976     41
+
+length(unique(claims$SRECIP)) #17485
+length(unique(claims$CLAIM_NUMBER)) #64830
+```
+
+# Reading in cleaned eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+dim(eligibility) #103204    156
+```
+
+# Joining dental claims with eligibility data
+
+```{r}
+cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment")
+
+claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], by = c("SRECIP" = "srecip"))
+
+#remove claims that are not in eligibility
+claims <- claims[which(claims$SRECIP %in% eligibility$srecip),]
+dim(claims) #179518     47
+
+```
+
+#creating variables
+
+##FY based on FY variable in claims
+
+```{r}
+claims$FY_2015 <- ifelse(claims$FY=="2015", 1, 0)
+claims$FY_2016 <- ifelse(claims$FY=="2016", 1, 0)
+claims$FY_2017 <- ifelse(claims$FY=="2017", 1, 0)
+claims$FY_2018 <- ifelse(claims$FY=="2018", 1, 0)
+
+```
+
+##create age category from eligibility
+
+```{r}
+claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 21, "<21",
+                                   ifelse(claims$Overall_Age_at_earliest_enrollment>= 21 & claims$Overall_Age_at_earliest_enrollment < 31, "21-30",
+                                          ifelse(claims$Overall_Age_at_earliest_enrollment >= 31 & claims$Overall_Age_at_earliest_enrollment < 41, "31-40",
+                                                 ifelse(claims$Overall_Age_at_earliest_enrollment >= 41 & claims$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
+claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+```
+
+##cdt category
+
+```{r}
+##D0100-D0999 DIAGNOSTIC
+##D1000-D1999 PREVENTIVE
+##D2000-D2999 RESTORATIVE
+##D3000-D3999 ENDODONTICS
+##D4000-D4999 PERIODONTICS
+##D5000-D5899 PROSTHODONTICS
+##D5900-D5999 MAXILLOFACIAL PROSTHETICS
+##D6000-D6199 IMPLANT SERVICES
+##D6200-D6999 PROSTHODONTICS
+##D7000-D7999 ORAL & MAXILLOFACIAL SURGERY
+##D8000-D8999 ORTHODONTICS
+##D9000-D9999 ADJUNCTIVE GENERAL SERVICES
+
+claims$CDT_category <- ifelse(claims$proc_code %in% paste0(0,c(100:999)), "DIAGNOSTIC",
+                              ifelse(claims$proc_code %in% c(1000:1999), "PREVENTIVE",
+                                     ifelse(claims$proc_code %in% c(2000:2999), "RESTORATIVE",
+                                            ifelse(claims$proc_code %in% c(3000:3999), "ENDODONTICS",
+                                                   ifelse(claims$proc_code %in% c(4000:4999), "PERIODONTICS",
+                                                          ifelse(claims$proc_code %in% c(5000:5899), "PROSTHODONTICS", 
+                                                                 ifelse(claims$proc_code %in% c(5900:5999), "MAXILLOFACIAL PROSTHETICS",
+                                                                        ifelse(claims$proc_code %in% c(6000:6199), "IMPLANT SERVICES",
+                                                                               ifelse(claims$proc_code %in% c(6200:6999), "PROSTHODONTICS",
+                                                                                      ifelse(claims$proc_code %in% c(7000:7999), "ORAL & MAXILLOFACIAL SURGERY",
+                                                                                             ifelse(claims$proc_code %in% c(8000:8999), "ORTHODONTICS",
+                                                                                                    ifelse(claims$proc_code %in% c(9000:9999), "ADJUNCTIVE GENERAL SERVICES", "UNKNOWN"))))))))))))
+
+```
+
+# Identifying unique claims
+
+## Claims with tooth number
+
+### Removing duplicates based on: claim #, proc code, service date, tooth number
+
+```{r}
+claims_tooth <- claims[!is.na(claims$Tooth_Number),]
+dim(claims_tooth) #118618     53
+table(claims_tooth$Tooth_Number, exclude = "ifany")
+
+claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE),]
+
+head(claims_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
+
+claims_nodup_tooth <- claims_tooth[!(duplicated(claims_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "Tooth_Number")])),]
+dim(claims_nodup_tooth) #118616    53
+
+```
+
+## Claims with no tooth number
+
+### Removing duplicates based on: claim #, proc code, service date, amount paid
+
+```{r}
+claims_no_tooth <- claims[is.na(claims$Tooth_Number),]
+dim(claims_no_tooth) #60900    53
+table(claims_no_tooth$Tooth_Number, exclude = "ifany")
+
+claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasing = TRUE),]
+
+head(claims_no_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
+
+claims_nodup_no_tooth <- claims_no_tooth[!(duplicated(claims_no_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "AMOUNT_PAID")])),]
+dim(claims_nodup_no_tooth) #60900    53
+
+```
+
+## Combining the two data sets
+
+```{r}
+unique_claims <- rbind.data.frame(claims_nodup_no_tooth, claims_nodup_tooth)
+dim(unique_claims) #179516     53
+
+```
+
+# Saving the dataset
+
+```{r}
+saveRDS(unique_claims, "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+

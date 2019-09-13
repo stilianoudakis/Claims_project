@@ -1,0 +1,318 @@
+---
+title: "Provider level table"
+author: "Spiro Stilianoudakis"
+date: "9/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Read in all_dental_providers 
+
+```{r}
+all_dental_providers <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/all_dental_providers.xlsx",
+                    sheet = "all_dental_providers",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+```
+
+## Checking to see duplicate name but different npi
+
+### providers with ptl license
+
+```{r}
+all_dental_providers_license <- all_dental_providers[-which(is.na(all_dental_providers$PTL_LICENSE)),]
+
+dim(all_dental_providers_license)
+#1820   10
+
+diff_npi <- all_dental_providers_license %>%
+  group_by(PTL_P_LAST, PTL_P_FIRST) %>%
+  summarize(n = length(unique(PTL_NPI_ID)))
+table(diff_npi$n)
+#  1   2   3   4   5   6   8  10  11  12 
+#980  74  13  11   4   4   1   4   4   1
+
+#example:
+diff_npi[which(diff_npi$n==12),]
+#MULE       MERISSA        12
+all_dental_providers_license[which(all_dental_providers_license$PTL_P_LAST=="MULE" & all_dental_providers_license$PTL_P_FIRST=="MERISSA"),]
+
+n=length(which(diff_npi$n>1))
+diff_license = numeric()
+for(i in 1:n){
+  dat <- all_dental_providers_license[which(all_dental_providers_license$PTL_P_LAST==diff_npi$PTL_P_LAST[which(diff_npi$n>1)[i]] & all_dental_providers_license$PTL_P_FIRST==diff_npi$PTL_P_FIRST[which(diff_npi$n>1)[i]]),]
+  
+  diff_license[i] <- length(unique(dat$PTL_LICENSE))
+}
+
+table(diff_license)
+#  1   2   3 
+#250  14   1 
+
+#example:
+head(which(diff_license>1))
+all_dental_providers_license[which(all_dental_providers_license$PTL_P_LAST==diff_npi$PTL_P_LAST[which(diff_npi$n>1)[13]] & all_dental_providers_license$PTL_P_FIRST==diff_npi$PTL_P_FIRST[which(diff_npi$n>1)[13]]),]
+```
+
+### providers with no ptl license
+
+```{r}
+all_dental_providers_no_license <- all_dental_providers[which(is.na(all_dental_providers$PTL_LICENSE)),]
+
+dim(all_dental_providers_no_license)
+#22388    10
+
+diff_npi_no_license <- all_dental_providers_no_license %>%
+  group_by(PTL_P_LAST, PTL_P_FIRST) %>%
+  summarize(n = length(unique(PTL_NPI_ID)))
+table(diff_npi_no_license$n)
+#   1    2    3    4    5    9   10   13   18 
+#6444  116   18    6    2    2    2    2    1 
+
+#example:
+diff_npi_no_license[which(diff_npi_no_license$n==18),]
+#KOOL SMILES NA             18
+all_dental_providers_no_license[which(all_dental_providers_no_license$PTL_P_LAST=="KOOL SMILES"),]
+
+```
+
+# Reading in unique claims
+
+```{r}
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+# Separating billing provider name into first and last
+
+```{r}
+unique_claims2 <- extract(unique_claims, BillIng_Provider_name, c("ProviderLastName", "ProviderFirstName"), "([^ ]+) (.*)")
+unique_claims2$ProviderFirstName <- toupper(unique_claims2$ProviderFirstName)
+unique_claims2$ProviderLastName <- toupper(unique_claims2$ProviderLastName)
+
+```
+
+
+# checking other values for missing billing provider ids
+
+```{r}
+unique_claims2[which(unique_claims2$billing_prov_NPI=="         ."),]
+```
+
+
+# Provider level table based on claims data
+
+## All years
+
+```{r}
+#unique providers
+unique_providers <- unique_claims2 %>%
+  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+dim(unique_providers) 
+head(unique_providers[which(unique_providers$billing_prov_NPI=="         ."),])
+
+#Number of patients per provider
+unique_patients <- unique_claims2 %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+summary(unique_patients$n)
+mean(unique_patients$n)
+sd(unique_patients$n)
+
+#Cost of services per provider
+tot_cost <- unique_claims2 %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = sum(as.numeric(na.omit(AMOUNT_PAID))))
+summary(tot_cost$n)
+mean(tot_cost$n)
+sd(tot_cost$n)
+
+#Number of visits per provider
+num_visits <- unique_claims2 %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+summary(num_visits$n)
+mean(num_visits$n)
+sd(num_visits$n)
+
+```
+
+## 2015
+
+```{r}
+#unique providers
+unique_providers_2015 <- unique_claims2 %>%
+  filter(FY=="2015") %>%
+  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+dim(unique_providers_2015) 
+
+#Number of patients per provider
+unique_patients_2015 <- unique_claims2 %>%
+  filter(FY=="2015") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+summary(unique_patients_2015$n)
+mean(unique_patients_2015$n)
+sd(unique_patients_2015$n)
+
+#Cost of services per provider
+tot_cost_2015 <- unique_claims2 %>%
+  filter(FY=="2015") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = sum(as.numeric(na.omit(AMOUNT_PAID))))
+summary(tot_cost_2015$n)
+mean(tot_cost_2015$n)
+sd(tot_cost_2015$n)
+
+#Number of visits per provider
+num_visits_2015 <- unique_claims2 %>%
+  filter(FY=="2015") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+summary(num_visits_2015$n)
+mean(num_visits_2015$n)
+sd(num_visits_2015$n)
+```
+
+## 2016
+
+```{r}
+#unique providers
+unique_providers_2016 <- unique_claims2 %>%
+  filter(FY=="2016") %>%
+  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+dim(unique_providers_2016) 
+
+#Number of patients per provider
+unique_patients_2016 <- unique_claims2 %>%
+  filter(FY=="2016") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+summary(unique_patients_2016$n)
+mean(unique_patients_2016$n)
+sd(unique_patients_2016$n)
+
+#Cost of services per provider
+tot_cost_2016 <- unique_claims2 %>%
+  filter(FY=="2016") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = sum(as.numeric(na.omit(AMOUNT_PAID))))
+summary(tot_cost_2016$n)
+mean(tot_cost_2016$n)
+sd(tot_cost_2016$n)
+
+#Number of visits per provider
+num_visits_2016 <- unique_claims2 %>%
+  filter(FY=="2016") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+summary(num_visits_2016$n)
+mean(num_visits_2016$n)
+sd(num_visits_2016$n)
+```
+
+## 2017
+
+```{r}
+#unique providers
+unique_providers_2017 <- unique_claims2 %>%
+  filter(FY=="2017") %>%
+  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+dim(unique_providers_2017) 
+
+#Number of patients per provider
+unique_patients_2017 <- unique_claims2 %>%
+  filter(FY=="2017") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+summary(unique_patients_2017$n)
+mean(unique_patients_2017$n)
+sd(unique_patients_2017$n)
+
+#Cost of services per provider
+tot_cost_2017 <- unique_claims2 %>%
+  filter(FY=="2017") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = sum(as.numeric(na.omit(AMOUNT_PAID))))
+summary(tot_cost_2017$n)
+mean(tot_cost_2017$n)
+sd(tot_cost_2017$n)
+
+#Number of visits per provider
+num_visits_2017 <- unique_claims2 %>%
+  filter(FY=="2017") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+summary(num_visits_2017$n)
+mean(num_visits_2017$n)
+sd(num_visits_2017$n)
+```
+
+## 2018
+
+```{r}
+#unique providers
+unique_providers_2018 <- unique_claims2 %>%
+  filter(FY=="2018") %>%
+  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+dim(unique_providers_2018) 
+
+#Number of patients per provider
+unique_patients_2018 <- unique_claims2 %>%
+  filter(FY=="2018") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+summary(unique_patients$n)
+mean(unique_patients_2018$n)
+sd(unique_patients_2018$n)
+
+#Cost of services per provider
+tot_cost_2018 <- unique_claims2 %>%
+  filter(FY=="2018") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = sum(as.numeric(na.omit(AMOUNT_PAID))))
+summary(tot_cost_2018$n)
+mean(tot_cost_2018$n)
+sd(tot_cost_2018$n)
+
+#Number of visits per provider
+num_visits_2018 <- unique_claims2 %>%
+  filter(FY=="2018") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+summary(num_visits_2018$n)
+mean(num_visits_2018$n)
+sd(num_visits_2018$n)
+```
+
+# Making Table
+
+```{r}
+
+```
+

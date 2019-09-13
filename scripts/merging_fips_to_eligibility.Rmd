@@ -1,0 +1,166 @@
+---
+title: "Bring over RFIPS to Eligibility data"
+author: "Spiro Stilianoudakis"
+date: "August 5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in all eligibility data
+
+```{r}
+ffs2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_ffs_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2015_ffs_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+ffs2015 <- ffs2015[, c("srecip", "R_FIPS")]
+names(ffs2015)[2] <- "R_FIPS_ffs_2015"
+
+mco2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_mco_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2015_mco_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+mco2015 <- mco2015[, c("srecip", "R_FIPS")]
+names(mco2015)[2] <- "R_FIPS_mco_2015"
+
+ffs2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_ffs_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2016_ffs_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+ffs2016 <- ffs2016[, c("srecip", "R_FIPS")]
+names(ffs2016)[2] <- "R_FIPS_ffs_2016"
+
+mco2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_mco_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2016_mco_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+mco2016 <- mco2016[, c("srecip", "R_FIPS")]
+names(mco2016)[2] <- "R_FIPS_mco_2016"
+
+ffs2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_ffs_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2017_ffs_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+ffs2017 <- ffs2017[, c("srecip", "R_FIPS")]
+names(ffs2017)[2] <- "R_FIPS_ffs_2017"
+
+mco2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_mco_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2017_mco_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+mco2017 <- mco2017[, c("srecip", "R_FIPS")]
+names(mco2017)[2] <- "R_FIPS_mco_2017"
+
+ffs2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_ffs_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2018_ffs_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+ffs2018 <- ffs2018[, c("srecip", "R_FIPS")]
+names(ffs2018)[2] <- "R_FIPS_ffs_2018"
+
+mco2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_mco_preg_ge21yo_90day.xlsx",
+                     sheet = "sfy2018_mco_preg_ge21yo_90day",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+mco2018 <- mco2018[, c("srecip", "R_FIPS")]
+names(mco2018)[2] <- "R_FIPS_mco_2018"
+
+```
+
+# Creating unified RFIPS variable
+
+```{r}
+all_elig <- plyr::join_all(list(ffs2015,
+                                 mco2015,
+                                 ffs2016,
+                                 mco2016,
+                                 ffs2017,
+                                 mco2017,
+                                 ffs2018,
+                                 mco2018), by='srecip', type='full')
+
+all_elig$Overall_R_FIPS <- apply(all_elig[,grep("FIPS", names(all_elig))], 1, function(x){unique(na.omit(x))})
+
+```
+
+# Reading in HPD data
+
+```{r}
+hpd <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/planning_districts.xlsx",
+                     sheet = "planning_districts",
+                     startRow = 1,
+                     colNames = TRUE,
+                     na.strings = "",
+                     detectDates = TRUE)
+
+hpd$FIPS[which(sapply(hpd$FIPS,nchar)==1)] <- paste0("00", hpd$FIPS[which(sapply(hpd$FIPS,nchar)==1)])
+hpd$FIPS[which(sapply(hpd$FIPS,nchar)==2)] <- paste0("0", hpd$FIPS[which(sapply(hpd$FIPS,nchar)==2)])
+```
+
+# Merge RFIPS to HPD data
+
+```{r}
+all_elig2 <- left_join(all_elig, hpd[,c(1,4,5)], by = c("Overall_R_FIPS" = "FIPS"))
+```
+
+
+# Reading in cleaned eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+
+```
+
+# Merge RFIPS to eligibility data
+
+```{r}
+eligibility <- left_join(eligibility, all_elig2[,c(1,11,12)], by="srecip")
+
+eligibility$HEALTH_PLANNING_DISTRICT <- factor(eligibility$HEALTH_PLANNING_DISTRICT,
+                                               levels=paste0("HPD ", c(1:22)))
+```
+
+# Saving eligibility data
+
+```{r}
+saveRDS(eligibility, "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+write.csv(as.matrix(eligibility), "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.csv")
+```
+

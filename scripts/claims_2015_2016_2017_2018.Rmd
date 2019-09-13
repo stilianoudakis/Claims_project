@@ -1,0 +1,543 @@
+---
+title: "Dentistry Claims RA Project"
+subtitle: "Pregnancy Claims Data"
+author: "Spiro Stilianoudakis"
+date: "May 10, 2019"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '1'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in FIPs table
+
+```{r}
+fipstab <- read.csv("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/fips_to_dmas_region.csv", header = FALSE, sep=",", colClasses = c("character", "character", "character"))
+fipstab <- fipstab[,c(1,3)]
+```
+
+# Reading in merged eligibility data
+
+```{r}
+ffs_mco_2015_2016_2017_2018 <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+```
+
+# 2015 
+
+```{r}
+claims2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_claims_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2015_claims_preg_ge21yo_90da",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(claims2015)
+#22042    59
+
+claims2015 <- claims2015[order(claims2015$SRECIP, claims2015$THRU_DTE, decreasing=TRUE),]
+
+length(unique(claims2015$SRECIP))
+#18830
+
+#some patients are duplicated
+#some are duplicated across all columns
+#some are duplicated across specific columns
+#some have overlapping start and end dates
+#some only enrolled 1 day
+#ex: claims2015[which(claims2015$SRECIP=="304363105201"),]
+#ex: claims2015[which(claims2015$SRECIP=="001157201803"),]
+#ex: claims2015[which(claims2015$SRECIP=="044167201604"),]
+
+#removing duplicates based select columns :
+#SRECIP
+#FROM_DTE
+cols <- c("SRECIP", "FROM_DTE")
+claims2015_nodup <- claims2015[!duplicated(claims2015[, which(names(claims2015) %in% cols)]), ]
+dim(claims2015_nodup)
+#20407    59
+
+#calculating days enrolled
+claims2015_nodup$DaysEnrolled <- as.numeric((as.Date(claims2015_nodup$THRU_DTE) - as.Date(claims2015_nodup$FROM_DTE)))
+
+claims2015_nodup2 <- cbind.data.frame(
+  claims2015_nodup %>%
+    group_by(SRECIP) %>%
+    dplyr::summarise(TDE = sum(DaysEnrolled, na.rm = TRUE)) %>%
+    dplyr::arrange(SRECIP),
+  claims2015_nodup %>% 
+    group_by(SRECIP) %>%
+    select(SRECIP, AGE, RACE, PCTYCNTY) %>% 
+    filter(row_number() == 1) %>%
+    dplyr::arrange(SRECIP)
+  ) 
+
+claims2015_nodup2 <- claims2015_nodup2[,-3]
+
+dim(claims2015_nodup2)
+#18830     5
+
+summary(claims2015_nodup2$TDE)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.012   3.000 109.000 
+
+#merging with fips data
+claims2015_nodup3 <- left_join(claims2015_nodup2, fipstab, by=c("PCTYCNTY" = "V1"))
+
+#recode demographics
+claims2015_nodup4 = claims2015_nodup3 %>% 
+  select(SRECIP, TDE, AGE, RACE, PCTYCNTY, V3) %>%
+  rename(REGION_2015 = V3,
+         TDE_2015 = TDE,
+         AGE_2015 = AGE,
+         RACE_2015 = RACE,
+         FIPS_2015 = PCTYCNTY
+         )
+
+#demographic summaries
+summary(claims2015_nodup4$TDE_2015)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.012   3.000 109.000 
+
+summary(claims2015_nodup4$AGE_2015)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.00   27.00   27.74   31.00   55.00 
+
+table(claims2015_nodup4$RACE_2015, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     B     C     D     F     G     J     K     O     S     V 
+#10188  6922    71   149   427   100     6    11   185    29    60   133    75     8     3    32   336     4    91 
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015=="1"] <- "White"
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015=="2"] <- "Black"
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015=="3" | claims2015_nodup4$RACE_2015=="6"] <- "Native American"
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015=="4"] <- "Asian"
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015=="5"] <- "Hispanic"
+claims2015_nodup4$RACE_2015[claims2015_nodup4$RACE_2015 %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+claims2015_nodup4$RACE_2015[which(claims2015_nodup4$RACE_2015=="Native American" | claims2015_nodup4$RACE_2015=="Asian")] <- "Native American/Asian"
+table(claims2015_nodup4$RACE_2015, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                 6922                   424                   322                   969                 10193 
+prop.table(table(claims2015_nodup4$RACE_2015, exclude = "ifany"))
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#           0.36760489            0.02251726            0.01710037            0.05146044            0.54131705 
+
+table(claims2015_nodup4$REGION_2015, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#                   4436                    2524                    4356                    1576                     713                    4717                     508 
+prop.table(table(claims2015_nodup4$REGION_2015, exclude = "ifany"))
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#             0.23558152              0.13404142              0.23133298              0.08369623              0.03786511              0.25050451              0.02697823 
+```
+
+# 2016
+
+```{r}
+claims2016 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2016_claims_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2016_claims_preg_ge21yo_90da",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(claims2016)
+#24808    59
+
+claims2016 <- claims2016[order(claims2016$SRECIP, claims2016$THRU_DTE, decreasing=TRUE),]
+
+length(unique(claims2016$SRECIP))
+#20951
+
+#some patients are duplicated
+#some are duplicated across all columns
+#some are duplicated across specific columns
+#some have overlapping start and end dates
+#ex: 
+#ex: 
+
+#removing duplicates based select columns :
+#SRECIP
+#FROM_DTE
+cols <- c("SRECIP", "FROM_DTE")
+claims2016_nodup <- claims2016[!duplicated(claims2016[, which(names(claims2016) %in% cols)]), ]
+dim(claims2016_nodup)
+#22625    59
+
+#calculating days enrolled
+claims2016_nodup$MonthsEnrolled <- as.numeric((as.Date(claims2016_nodup$THRU_DTE) - as.Date(claims2016_nodup$FROM_DTE)))
+
+claims2016_nodup2 <- cbind.data.frame(
+  claims2016_nodup %>%
+    group_by(SRECIP) %>%
+    dplyr::summarise(TDE = sum(MonthsEnrolled, na.rm = TRUE)) %>%
+    dplyr::arrange(SRECIP),
+  claims2016_nodup %>% 
+    group_by(SRECIP) %>%
+    select(SRECIP, AGE, RACE, PCTYCNTY) %>% 
+    filter(row_number() == 1)%>%
+    dplyr::arrange(SRECIP)
+  ) 
+
+claims2016_nodup2 <- claims2016_nodup2[,-3]
+
+dim(claims2016_nodup2)
+#20951     5
+
+summary(claims2016_nodup2$TDE)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   2.982   3.000 172.000  
+
+#merging with fips data
+claims2016_nodup3 <- left_join(claims2016_nodup2, fipstab, by=c("PCTYCNTY" = "V1"))
+
+#recode demographics
+claims2016_nodup4 = claims2016_nodup3 %>% 
+  select(SRECIP, TDE, AGE, RACE, PCTYCNTY, V3) %>%
+  rename(REGION_2016 = V3,
+         TDE_2016 = TDE,
+         AGE_2016 = AGE,
+         RACE_2016 = RACE,
+         FIPS_2016 = PCTYCNTY
+         )
+
+#demographic summaries
+summary(claims2016_nodup4$TDE_2016)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   2.982   3.000 172.000 
+
+summary(claims2016_nodup4$AGE_2016)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.00   27.00   27.88   31.00   50.00 
+
+table(claims2016_nodup4$RACE_2016, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#11592  7688   115    74   204   143     2     5   100     1   116    75   112    73     5     4    52   469     9   112 
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016=="1"] <- "White"
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016=="2"] <- "Black"
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016=="3" | claims2016_nodup4$RACE_2016=="6"] <- "Native American"
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016=="4"] <- "Asian"
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016=="5"] <- "Hispanic"
+claims2016_nodup4$RACE_2016[claims2016_nodup4$RACE_2016 %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+claims2016_nodup4$RACE_2016[which(claims2016_nodup4$RACE_2016=="Native American" | claims2016_nodup4$RACE_2016=="Asian")] <- "Native American/Asian"
+table(claims2016_nodup4$RACE_2016, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                 7688                   204                   332                  1135                 11592 
+prop.table(table(claims2016_nodup4$RACE_2016, exclude = "ifany"))
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#          0.366951458           0.009737005           0.015846499           0.054174025           0.553291012 
+
+table(claims2016_nodup4$REGION_2016, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#                   5083                    2809                    4789                    1848                     732                    5152                     538 
+prop.table(table(claims2016_nodup4$REGION_2016, exclude = "ifany"))
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#             0.24261372              0.13407475              0.22858097              0.08820581              0.03493867              0.24590712              0.02567897 
+
+#join with 2015
+length(intersect(claims2015_nodup4$SRECIP, claims2016_nodup4$SRECIP)) #1098
+claims_2015_2016 <- full_join(claims2015_nodup4,
+                          claims2016_nodup4,
+                          by = "SRECIP")
+
+dim(claims_2015_2016)
+#38683    11
+```
+
+# 2017
+
+```{r}
+claims2017 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2017_claims_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2017_claims_preg_ge21yo_90da",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(claims2017)
+#26603    59
+
+claims2017 <- claims2017[order(claims2017$SRECIP, claims2017$THRU_DTE, decreasing=TRUE),]
+
+length(unique(claims2017$SRECIP))
+#21201
+
+#some patients are duplicated
+#some are duplicated across all columns
+#some are duplicated across specific columns
+#some have overlapping start and end dates
+#ex: 
+#ex: 
+
+#removing duplicates based select columns :
+#SRECIP
+#FROM_DTE
+cols <- c("SRECIP", "FROM_DTE")
+claims2017_nodup <- claims2017[!duplicated(claims2017[, which(names(claims2017) %in% cols)]), ]
+dim(claims2017_nodup)
+#23024    59
+
+#calculating days enrolled
+claims2017_nodup$MonthsEnrolled <- as.numeric((as.Date(claims2017_nodup$THRU_DTE) - as.Date(claims2017_nodup$FROM_DTE)))
+
+claims2017_nodup2 <- cbind.data.frame(
+  claims2017_nodup %>%
+    group_by(SRECIP) %>%
+    dplyr::summarise(TDE = sum(MonthsEnrolled, na.rm = TRUE)) %>%
+    dplyr::arrange(SRECIP),
+  claims2017_nodup %>% 
+    group_by(SRECIP) %>%
+    select(SRECIP, AGE, RACE, PCTYCNTY) %>% 
+    filter(row_number() == 1)%>%
+    dplyr::arrange(SRECIP)
+  ) 
+
+claims2017_nodup2 <- claims2017_nodup2[,-3]
+
+dim(claims2017_nodup2)
+#21201     5
+
+summary(claims2017_nodup2$TDE)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.007   3.000 126.000  
+
+#merging with fips data
+claims2017_nodup3 <- left_join(claims2017_nodup2, fipstab, by=c("PCTYCNTY" = "V1"))
+
+#recode demographics
+claims2017_nodup4 = claims2017_nodup3 %>% 
+  select(SRECIP, TDE, AGE, RACE, PCTYCNTY, V3) %>%
+  rename(REGION_2017 = V3,
+         TDE_2017 = TDE,
+         AGE_2017 = AGE,
+         RACE_2017 = RACE,
+         FIPS_2017 = PCTYCNTY
+         )
+
+#demographic summaries
+summary(claims2017_nodup4$TDE_2017)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.007   3.000 126.000  
+
+summary(claims2017_nodup4$AGE_2017)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.00   27.00   27.97   31.00   54.00 
+
+table(claims2017_nodup4$RACE_2017, exclude = "ifany")
+#    1     2     3     4     5     6     7     8     9     A     B     C     D     F     G     J     K     O     S     V 
+#11856  7814   113    23    40   127     1     1    14     1   103    61   186    88    11     5    40   602     4   111  
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017=="1"] <- "White"
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017=="2"] <- "Black"
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017=="3" | claims2017_nodup4$RACE_2017=="6"] <- "Native American"
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017=="4"] <- "Asian"
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017=="5"] <- "Hispanic"
+claims2017_nodup4$RACE_2017[claims2017_nodup4$RACE_2017 %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+claims2017_nodup4$RACE_2017[which(claims2017_nodup4$RACE_2017=="Native American" | claims2017_nodup4$RACE_2017=="Asian")] <- "Native American/Asian"
+table(claims2017_nodup4$RACE_2017, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                 7814                    40                   263                  1228                 11856 
+prop.table(table(claims2017_nodup4$RACE_2017, exclude = "ifany"))
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#          0.368567520           0.001886703           0.012405075           0.057921796           0.559218905
+
+table(claims2017_nodup4$REGION_2017, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#                   5109                    2728                    5037                    1891                     686                    5096                     654 
+prop.table(table(claims2017_nodup4$REGION_2017, exclude = "ifany"))
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#             0.24097920              0.12867318              0.23758313              0.08919391              0.03235696              0.24036602              0.03084760  
+
+#join with 2015_2016
+length(intersect(claims_2015_2016$SRECIP, claims2017_nodup4$SRECIP)) #2344
+claims_2015_2016_2017 <- full_join(claims_2015_2016,
+                          claims2017_nodup4,
+                          by = "SRECIP")
+
+dim(claims_2015_2016_2017)
+#57540    16
+```
+
+# 2018
+
+```{r}
+claims2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2018_claims_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2018_claims_preg_ge21yo_90da",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(claims2018)
+#26307    59
+
+claims2018 <- claims2018[order(claims2018$SRECIP, claims2018$THRU_DTE, decreasing=TRUE),]
+
+length(unique(claims2018$SRECIP))
+#22114
+
+#some patients are duplicated
+#some are duplicated across all columns
+#some are duplicated across specific columns
+#some have overlapping start and end dates
+#ex: 
+#ex: 
+
+#removing duplicates based select columns :
+#SRECIP
+#FROM_DTE
+cols <- c("SRECIP", "FROM_DTE")
+claims2018_nodup <- claims2018[!duplicated(claims2018[, which(names(claims2018) %in% cols)]), ]
+dim(claims2018_nodup)
+#24266    59
+
+#calculating days enrolled
+claims2018_nodup$MonthsEnrolled <- as.numeric((as.Date(claims2018_nodup$THRU_DTE) - as.Date(claims2018_nodup$FROM_DTE)))
+
+claims2018_nodup2 <- cbind.data.frame(
+  claims2018_nodup %>%
+    group_by(SRECIP) %>%
+    dplyr::summarise(TDE = sum(MonthsEnrolled, na.rm = TRUE)) %>%
+    dplyr::arrange(SRECIP),
+  claims2018_nodup %>% 
+    group_by(SRECIP) %>%
+    select(SRECIP, AGE, RACE, PCTYCNTY) %>% 
+    filter(row_number() == 1)%>%
+    dplyr::arrange(SRECIP)
+  ) 
+
+claims2018_nodup2 <- claims2018_nodup2[,-3]
+
+dim(claims2018_nodup2)
+#22114     5
+
+summary(claims2018_nodup2$TDE)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.069   3.000 131.000 
+
+#merging with fips data
+claims2018_nodup3 <- left_join(claims2018_nodup2, fipstab, by=c("PCTYCNTY" = "V1"))
+
+#recode demographics
+claims2018_nodup4 = claims2018_nodup3 %>% 
+  select(SRECIP, TDE, AGE, RACE, PCTYCNTY, V3) %>%
+  rename(REGION_2018 = V3,
+         TDE_2018 = TDE,
+         AGE_2018 = AGE,
+         RACE_2018 = RACE,
+         FIPS_2018 = PCTYCNTY
+         )
+
+#demographic summaries
+summary(claims2018_nodup4$TDE_2018)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   2.000   2.000   3.069   3.000 131.000 
+
+summary(claims2018_nodup4$AGE_2018)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  21.00   24.00   27.00   28.14   31.00   48.00 
+
+table(claims2018_nodup4$RACE_2018, exclude = "ifany")
+#    1     2     3     4     5     6     9     B     C     D     F     G     J     K     O     S     V 
+#12106  8442    95     9    25   150     6    54    66   196    83    14     6    39   699     4   120  
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018=="1"] <- "White"
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018=="2"] <- "Black"
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018=="3" | claims2018_nodup4$RACE_2018=="6"] <- "Native American"
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018=="4"] <- "Asian"
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018=="5"] <- "Hispanic"
+claims2018_nodup4$RACE_2018[claims2018_nodup4$RACE_2018 %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+claims2018_nodup4$RACE_2018[which(claims2018_nodup4$RACE_2018=="Native American" | claims2018_nodup4$RACE_2018=="Asian")] <- "Native American/Asian"
+table(claims2018_nodup4$RACE_2018, exclude = "ifany")
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#                 8442                    25                   254                  1287                 12106  
+prop.table(table(claims2018_nodup4$RACE_2018, exclude = "ifany"))
+#                Black              Hispanic Native American/Asian                 Other                 White 
+#          0.381749118           0.001130506           0.011485937           0.058198426           0.547436013 
+
+table(claims2018_nodup4$REGION_2018, exclude = "ifany")
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#                   5526                    2827                    5134                    1910                     674                    5426                     617 
+prop.table(table(claims2018_nodup4$REGION_2018, exclude = "ifany"))
+#                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER                    <NA> 
+#             0.24988695              0.12783757              0.23216062              0.08637062              0.03047843              0.24536493              0.02790088
+
+#join with 2015_2016_2017
+length(intersect(claims_2015_2016_2017$SRECIP, claims2018_nodup4$SRECIP)) #3839
+claims_2015_2016_2017_2018 <- full_join(claims_2015_2016_2017,
+                          claims2018_nodup4,
+                          by = "SRECIP")
+
+dim(claims_2015_2016_2017_2018)
+#75815    21
+```
+
+# Creating overall demographics
+
+```{r}
+#some people have recorded races different across years
+#ex:claims2015[which(claims2015$SRECIP=="038163005601"),]; claims2016[which(claims2016$SRECIP=="038163005601"),]
+
+claims$Overall_RACE <- apply(claims[,grep("RACE", names(claims))], 1, function(x){unique(na.omit(x))})
+table(claims$Overall_Race, exclude = "ifany")
+
+claims$Overall_AGE <- apply(claims[,grep("AGE", names(claims))], 1,function(x){min(na.omit(x))})
+summary(claims$Overall_AGE)
+
+claims$Overall_REGION <- apply(claims[,grep("REGION", names(claims))], 1, function(x){unique(na.omit(x))})
+table(claims$Overall_REGION, exclude = "ifany")
+
+claims$Overall_TDE <- apply(claims[,grep("TDE", names(claims))], 1, function(x){sum(na.omit(x))})
+table(claims$Overall_TDE, exclude = "ifany")
+```
+
+
+# Annotate where each person came from
+
+```{r}
+length(unique(claims_2015_2016_2017_2018$SRECIP)) #75815
+
+claims_2015_2016_2017_2018$FY_2015 <- ifelse(claims_2015_2016_2017_2018$SRECIP %in% claims2015_nodup4$SRECIP, 1, 0)
+claims_2015_2016_2017_2018$FY_2016 <- ifelse(claims_2015_2016_2017_2018$SRECIP %in% claims2016_nodup4$SRECIP, 1, 0)
+claims_2015_2016_2017_2018$FY_2017 <- ifelse(claims_2015_2016_2017_2018$SRECIP %in% claims2017_nodup4$SRECIP, 1, 0)
+claims_2015_2016_2017_2018$FY_2018 <- ifelse(claims_2015_2016_2017_2018$SRECIP %in% claims2018_nodup4$SRECIP, 1, 0)
+
+table(claims_2015_2016_2017_2018$FY_2015)
+#    0     1 
+#56985 18830 
+table(claims_2015_2016_2017_2018$FY_2016)
+#    0     1 
+#54864 20951 
+table(claims_2015_2016_2017_2018$FY_2017)
+#    0     1 
+#54614 21201 
+table(claims_2015_2016_2017_2018$FY_2018)
+#    0     1 
+#53701 22114 
+```
+
+#Save data
+
+```{r}
+saveRDS(claims_2015_2016_2017_2018, "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/claims_2015_2016_2017_2018.rds")
+write.csv(as.matrix(claims_2015_2016_2017_2018), "X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/claims_2015_2016_2017_2018.csv")
+```
+

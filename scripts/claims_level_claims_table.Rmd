@@ -1,0 +1,135 @@
+---
+title: "Claims level table"
+author: "Spiro Stilianoudakis"
+date: "9/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in unique claims
+
+```{r}
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+# Claims level table (mutually exclusive)
+
+```{r}
+claim_level <- unique_claims[order(unique_claims$CLAIM_NUMBER, decreasing = TRUE),]
+```
+
+## All years
+
+```{r}
+#total number
+dim(claim_level)
+
+#cdt category
+table(claim_level$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level$CDT_category, exclude = "ifany")), 3)
+```
+
+## 2015
+
+```{r}
+claim_level_2015 <- claim_level[which(claim_level$FY=="2015"),]
+ 
+#total number
+dim(claim_level_2015)
+
+#cdt category
+table(claim_level_2015$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2015$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2016
+
+```{r}
+claim_level_2016 <- claim_level[which(claim_level$FY=="2016"),]
+ 
+#total number
+dim(claim_level_2016)
+
+#cdt category
+table(claim_level_2016$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2016$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2017
+
+```{r}
+claim_level_2017 <- claim_level[which(claim_level$FY=="2017"),]
+ 
+#total number
+dim(claim_level_2017)
+
+#cdt category
+table(claim_level_2017$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2017$CDT_category, exclude = "ifany")), 3)
+
+```
+
+## 2018
+
+```{r}
+claim_level_2018 <- claim_level[which(claim_level$FY=="2018"),]
+ 
+#total number
+dim(claim_level_2018)
+
+#cdt category
+table(claim_level_2018$CDT_category, exclude = "ifany")
+round(prop.table(table(claim_level_2018$CDT_category, exclude = "ifany")), 3)
+
+```
+
+# Making table
+
+```{r}
+cbind.data.frame( #all years
+				   AY=rbind(nrow(claim_level),
+				   t(t(paste0(table(claim_level$CDT_category), " ", "(",round(prop.table(table(claim_level$CDT_category)), 3)*100, ")")))),
+				   
+				  #2015
+				   FY2015=rbind(nrow(claim_level_2015),
+				   t(t(paste0(table(claim_level_2015$CDT_category), " ", "(",round(prop.table(table(claim_level_2015$CDT_category)), 3)*100, ")")))),
+				   
+				  #2016
+				   FY2016=rbind(nrow(claim_level_2016),
+				   t(t(paste0(table(claim_level_2016$CDT_category), " ", "(",round(prop.table(table(claim_level_2016$CDT_category)), 3)*100, ")")))),
+				   
+				  #2017
+				   FY2017=rbind(nrow(claim_level_2017),
+				   t(t(paste0(table(claim_level_2017$CDT_category), " ", "(",round(prop.table(table(claim_level_2017$CDT_category)), 3)*100, ")")))),
+				   
+				  #2018
+				   FY2018=rbind(nrow(claim_level_2018),
+				   t(t(paste0(table(claim_level_2018$CDT_category), " ", "(",round(prop.table(table(claim_level_2018$CDT_category)), 3)*100, ")"))))
+				 )
+```
+
