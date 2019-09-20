@@ -132,7 +132,7 @@ unique_claims2[which(unique_claims2$billing_prov_NPI=="         ."),]
 ```{r}
 #unique providers
 unique_providers <- unique_claims2 %>%
-  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+  distinct(ProviderLastName, ProviderFirstName) 
 dim(unique_providers) 
 head(unique_providers[which(unique_providers$billing_prov_NPI=="         ."),])
 
@@ -153,12 +153,20 @@ mean(tot_cost$n)
 sd(tot_cost$n)
 
 #Number of visits per provider
-num_visits <- unique_claims2 %>%
+#num_visits <- unique_claims2 %>%
+#  group_by(ProviderLastName, ProviderFirstName) %>%
+#  summarize(n = length(unique(SERVICE_DATE)))
+#summary(num_visits$n)
+#mean(num_visits$n)
+#sd(num_visits$n)
+
+#Number of claims per provider
+num_claims <- unique_claims2 %>%
   group_by(ProviderLastName, ProviderFirstName) %>%
-  summarize(n = length(unique(SERVICE_DATE)))
-summary(num_visits$n)
-mean(num_visits$n)
-sd(num_visits$n)
+  count()
+summary(num_claims$n)
+mean(num_claims$n)
+sd(num_claims$n)
 
 ```
 
@@ -168,7 +176,7 @@ sd(num_visits$n)
 #unique providers
 unique_providers_2015 <- unique_claims2 %>%
   filter(FY=="2015") %>%
-  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+  distinct(ProviderLastName, ProviderFirstName) 
 dim(unique_providers_2015) 
 
 #Number of patients per provider
@@ -190,13 +198,22 @@ mean(tot_cost_2015$n)
 sd(tot_cost_2015$n)
 
 #Number of visits per provider
-num_visits_2015 <- unique_claims2 %>%
+#num_visits_2015 <- unique_claims2 %>%
+#  filter(FY=="2015") %>%
+#  group_by(ProviderLastName, ProviderFirstName) %>%
+#  summarize(n = length(unique(SERVICE_DATE)))
+#summary(num_visits_2015$n)
+#mean(num_visits_2015$n)
+#sd(num_visits_2015$n)
+
+#Number of claims per provider
+num_claims_2015 <- unique_claims2 %>%
   filter(FY=="2015") %>%
   group_by(ProviderLastName, ProviderFirstName) %>%
-  summarize(n = length(unique(SERVICE_DATE)))
-summary(num_visits_2015$n)
-mean(num_visits_2015$n)
-sd(num_visits_2015$n)
+  count()
+summary(num_claims_2015$n)
+mean(num_claims_2015$n)
+sd(num_claims_2015$n)
 ```
 
 ## 2016
@@ -205,7 +222,7 @@ sd(num_visits_2015$n)
 #unique providers
 unique_providers_2016 <- unique_claims2 %>%
   filter(FY=="2016") %>%
-  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+  distinct(ProviderLastName, ProviderFirstName) 
 dim(unique_providers_2016) 
 
 #Number of patients per provider
@@ -227,13 +244,22 @@ mean(tot_cost_2016$n)
 sd(tot_cost_2016$n)
 
 #Number of visits per provider
-num_visits_2016 <- unique_claims2 %>%
+#num_visits_2016 <- unique_claims2 %>%
+#  filter(FY=="2016") %>%
+#  group_by(ProviderLastName, ProviderFirstName) %>%
+#  summarize(n = length(unique(SERVICE_DATE)))
+#summary(num_visits_2016$n)
+#mean(num_visits_2016$n)
+#sd(num_visits_2016$n)
+
+#Number of claims per provider
+num_claims_2016 <- unique_claims2 %>%
   filter(FY=="2016") %>%
   group_by(ProviderLastName, ProviderFirstName) %>%
-  summarize(n = length(unique(SERVICE_DATE)))
-summary(num_visits_2016$n)
-mean(num_visits_2016$n)
-sd(num_visits_2016$n)
+  count()
+summary(num_claims_2016$n)
+mean(num_claims_2016$n)
+sd(num_claims_2016$n)
 ```
 
 ## 2017
@@ -242,7 +268,7 @@ sd(num_visits_2016$n)
 #unique providers
 unique_providers_2017 <- unique_claims2 %>%
   filter(FY=="2017") %>%
-  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+  distinct(ProviderLastName, ProviderFirstName) 
 dim(unique_providers_2017) 
 
 #Number of patients per provider
@@ -264,13 +290,22 @@ mean(tot_cost_2017$n)
 sd(tot_cost_2017$n)
 
 #Number of visits per provider
-num_visits_2017 <- unique_claims2 %>%
+#num_visits_2017 <- unique_claims2 %>%
+#  filter(FY=="2017") %>%
+#  group_by(ProviderLastName, ProviderFirstName) %>%
+#  summarize(n = length(unique(SERVICE_DATE)))
+#summary(num_visits_2017$n)
+#mean(num_visits_2017$n)
+#sd(num_visits_2017$n)
+
+#Number of claims per provider
+num_claims_2017 <- unique_claims2 %>%
   filter(FY=="2017") %>%
   group_by(ProviderLastName, ProviderFirstName) %>%
-  summarize(n = length(unique(SERVICE_DATE)))
-summary(num_visits_2017$n)
-mean(num_visits_2017$n)
-sd(num_visits_2017$n)
+  count()
+summary(num_claims_2017$n)
+mean(num_claims_2017$n)
+sd(num_claims_2017$n)
 ```
 
 ## 2018
@@ -279,7 +314,7 @@ sd(num_visits_2017$n)
 #unique providers
 unique_providers_2018 <- unique_claims2 %>%
   filter(FY=="2018") %>%
-  distinct(billing_prov_NPI, ProviderLastName, ProviderFirstName) 
+  distinct(ProviderLastName, ProviderFirstName) 
 dim(unique_providers_2018) 
 
 #Number of patients per provider
@@ -301,14 +336,140 @@ mean(tot_cost_2018$n)
 sd(tot_cost_2018$n)
 
 #Number of visits per provider
-num_visits_2018 <- unique_claims2 %>%
+#num_visits_2018 <- unique_claims2 %>%
+#  filter(FY=="2018") %>%
+#  group_by(ProviderLastName, ProviderFirstName) %>%
+#  summarize(n = length(unique(SERVICE_DATE)))
+#summary(num_visits_2018$n)
+#mean(num_visits_2018$n)
+#sd(num_visits_2018$n)
+
+#Number of claims per provider
+num_claims_2018 <- unique_claims2 %>%
   filter(FY=="2018") %>%
   group_by(ProviderLastName, ProviderFirstName) %>%
-  summarize(n = length(unique(SERVICE_DATE)))
-summary(num_visits_2018$n)
-mean(num_visits_2018$n)
-sd(num_visits_2018$n)
+  count()
+summary(num_claims_2018$n)
+mean(num_claims_2018$n)
+sd(num_claims_2018$n)
 ```
+
+# Plots
+
+## Number of patients
+
+```{r}
+num_pats_df <- data.frame(n=c(unique_patients$n,
+                                  unique_patients_2015$n,
+                                  unique_patients_2016$n,
+                                  unique_patients_2017$n,
+                                  unique_patients_2018$n),
+                          fy=c(rep("All years", length(unique_patients$n)),
+                               rep("2015", length(unique_patients_2015$n)),
+                               rep("2016", length(unique_patients_2016$n)),
+                               rep("2017", length(unique_patients_2017$n)),
+                               rep("2018", length(unique_patients_2018$n))))
+
+num_pats_df$fy <- factor(num_pats_df$fy, levels=c("All years", "2015", "2016", "2017", "2018"))
+
+ggplot(num_pats_df, aes(x=n, fill=fy)) +  
+   facet_wrap(. ~ fy, scales="free") +
+   geom_histogram(bins=30) + 
+   theme_minimal() +
+   theme_bw()+
+   xlab("Number of Unique Patients Associated with Providers") + ylab("Count of Providers") + #ylim(-.1,.5) +
+   guides(fill=FALSE)+
+   theme(axis.text.x = element_text(size=15),
+   axis.text.y = element_text(size = 15),
+   axis.title.x = element_text(size = 20),
+   axis.title.y = element_text(size = 20),
+   strip.text.x = element_text(size = 15),
+   strip.text.y = element_text(size = 15),
+   #panel.spacing = unit(2, "lines"),
+   legend.text=element_text(size=15),
+   legend.title=element_text(size=20),
+   plot.title = element_text(size=20),
+   legend.position="bottom")
+
+ggplot(num_pats_df, aes(x="", y=n, fill=fy)) +  
+   facet_wrap(. ~ fy, scales="free") +
+   geom_boxplot() + 
+   theme_minimal() +
+   theme_bw()+
+   xlab("Number of Unique Patients Associated with Providers") + ylab("Count of Providers") + #ylim(-.1,.5) +
+   guides(fill=FALSE)+
+   theme(axis.text.x = element_text(size=15),
+   axis.text.y = element_text(size = 15),
+   axis.title.x = element_text(size = 20),
+   axis.title.y = element_text(size = 20),
+   strip.text.x = element_text(size = 15),
+   strip.text.y = element_text(size = 15),
+   #panel.spacing = unit(2, "lines"),
+   legend.text=element_text(size=15),
+   legend.title=element_text(size=20),
+   plot.title = element_text(size=20),
+   legend.position="bottom")
+
+tapply(num_pats_df$n, num_pats_df$fy, summary)
+```
+
+## Number of claims
+
+```{r}
+num_claims_df <- data.frame(n=c(num_claims$n,
+                                  num_claims_2015$n,
+                                  num_claims_2016$n,
+                                  num_claims_2017$n,
+                                  num_claims_2018$n),
+                          fy=c(rep("All years", length(num_claims$n)),
+                               rep("2015", length(num_claims_2015$n)),
+                               rep("2016", length(num_claims_2016$n)),
+                               rep("2017", length(num_claims_2017$n)),
+                               rep("2018", length(num_claims_2018$n))))
+
+num_claims_df$fy <- factor(num_claims_df$fy, levels=c("All years", "2015", "2016", "2017", "2018"))
+
+ggplot(num_claims_df, aes(x=n, fill=fy)) +  
+   facet_wrap(. ~ fy, scales = "free") +
+   geom_histogram(bins=30) + 
+   theme_minimal() +
+   theme_bw()+
+   xlab("Number of Unique Claims Associated with Providers") + ylab("Count of Providers") + #ylim(-.1,.5) +
+   guides(fill=FALSE)+
+   theme(axis.text.x = element_text(size=15),
+   axis.text.y = element_text(size = 15),
+   axis.title.x = element_text(size = 20),
+   axis.title.y = element_text(size = 20),
+   strip.text.x = element_text(size = 15),
+   strip.text.y = element_text(size = 15),
+   #panel.spacing = unit(2, "lines"),
+   legend.text=element_text(size=15),
+   legend.title=element_text(size=20),
+   plot.title = element_text(size=20),
+   legend.position="bottom")
+
+ggplot(num_claims_df, aes(x="", y=n, fill=fy)) +  
+   facet_wrap(. ~ fy, scales = "free") +
+   geom_boxplot() + 
+   theme_minimal() +
+   theme_bw()+
+   xlab("Number of Unique Claims Associated with Providers") + ylab("Count of Providers") + #ylim(-.1,.5) +
+   guides(fill=FALSE)+
+   theme(axis.text.x = element_text(size=15),
+   axis.text.y = element_text(size = 15),
+   axis.title.x = element_text(size = 20),
+   axis.title.y = element_text(size = 20),
+   strip.text.x = element_text(size = 15),
+   strip.text.y = element_text(size = 15),
+   #panel.spacing = unit(2, "lines"),
+   legend.text=element_text(size=15),
+   legend.title=element_text(size=20),
+   plot.title = element_text(size=20),
+   legend.position="bottom")
+
+tapply(num_claims_df$n, num_claims_df$fy, summary)
+```
+
 
 # Making Table
 

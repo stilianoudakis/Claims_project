@@ -172,6 +172,47 @@ round(prop.table(table(patient_level$HEALTH_PLANNING_DISTRICT)), 3)
 table(patient_level$HEALTH_PLANNING_REGION)
 round(prop.table(table(patient_level$HEALTH_PLANNING_REGION)), 3)
 
+#CDT category
+##ADJUNCTIVE GENERAL SERVICES
+patient_level$ADJUNCTIVE_GENERAL_SERVICES <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("ADJUNCTIVE GENERAL SERVICES" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$ADJUNCTIVE_GENERAL_SERVICES)
+prop.table(table(patient_level$ADJUNCTIVE_GENERAL_SERVICES))
+
+##DIAGNOSTIC
+patient_level$DIAGNOSTIC <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$DIAGNOSTIC)
+prop.table(table(patient_level$DIAGNOSTIC))
+
+##ENDODONTICS
+patient_level$ENDODONTICS <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$ENDODONTICS)
+prop.table(table(patient_level$ENDODONTICS))
+
+##ORAL & MAXILLOFACIAL SURGERY
+patient_level$ORAL_and_MAXILLOFACIAL_SURGERY <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$ORAL_and_MAXILLOFACIAL_SURGERY)
+prop.table(table(patient_level$ORAL_and_MAXILLOFACIAL_SURGERY))
+
+##PERIODONTICS
+patient_level$PERIODONTICS <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$PERIODONTICS)
+prop.table(table(patient_level$PERIODONTICS))
+
+##PREVENTIVE
+patient_level$PREVENTIVE <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$PREVENTIVE)
+prop.table(table(patient_level$PREVENTIVE))
+
+##PROSTHODONTICS
+patient_level$PROSTHODONTICS <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("PROSTHODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$PROSTHODONTICS)
+prop.table(table(patient_level$PROSTHODONTICS))
+
+##RESTORATIVE
+patient_level$RESTORATIVE <- as.vector(sapply(patient_level$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level$RESTORATIVE)
+prop.table(table(patient_level$RESTORATIVE))
+
 ```
 
 ## 2015
@@ -300,6 +341,46 @@ round(prop.table(table(patient_level_2015$HEALTH_PLANNING_DISTRICT)), 3)
 table(patient_level_2015$HEALTH_PLANNING_REGION)
 round(prop.table(table(patient_level_2015$HEALTH_PLANNING_REGION)), 3)
 
+#CDT category
+##ADJUNCTIVE GENERAL SERVICES
+patient_level_2015$ADJUNCTIVE_GENERAL_SERVICES <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("ADJUNCTIVE GENERAL SERVICES" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$ADJUNCTIVE_GENERAL_SERVICES)
+prop.table(table(patient_level_2015$ADJUNCTIVE_GENERAL_SERVICES))
+
+##DIAGNOSTIC
+patient_level_2015$DIAGNOSTIC <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$DIAGNOSTIC)
+prop.table(table(patient_level_2015$DIAGNOSTIC))
+
+##ENDODONTICS
+patient_level_2015$ENDODONTICS <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$ENDODONTICS)
+prop.table(table(patient_level_2015$ENDODONTICS))
+
+##ORAL & MAXILLOFACIAL SURGERY
+patient_level_2015$ORAL_and_MAXILLOFACIAL_SURGERY <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$ORAL_and_MAXILLOFACIAL_SURGERY)
+prop.table(table(patient_level_2015$ORAL_and_MAXILLOFACIAL_SURGERY))
+
+##PERIODONTICS
+patient_level_2015$PERIODONTICS <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$PERIODONTICS)
+prop.table(table(patient_level_2015$PERIODONTICS))
+
+##PREVENTIVE
+patient_level_2015$PREVENTIVE <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$PREVENTIVE)
+prop.table(table(patient_level_2015$PREVENTIVE))
+
+##PROSTHODONTICS
+patient_level_2015$PROSTHODONTICS <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("PROSTHODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$PROSTHODONTICS)
+prop.table(table(patient_level_2015$PROSTHODONTICS))
+
+##RESTORATIVE
+patient_level_2015$RESTORATIVE <- as.vector(sapply(patient_level_2015$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2015$RESTORATIVE)
+prop.table(table(patient_level_2015$RESTORATIVE))
 
 ```
 
@@ -429,6 +510,46 @@ round(prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT)), 3)
 table(patient_level_2016$HEALTH_PLANNING_REGION)
 round(prop.table(table(patient_level_2016$HEALTH_PLANNING_REGION)), 3)
 
+#CDT category
+##ADJUNCTIVE GENERAL SERVICES
+patient_level_2016$ADJUNCTIVE_GENERAL_SERVICES <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("ADJUNCTIVE GENERAL SERVICES" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$ADJUNCTIVE_GENERAL_SERVICES)
+prop.table(table(patient_level_2016$ADJUNCTIVE_GENERAL_SERVICES))
+
+##DIAGNOSTIC
+patient_level_2016$DIAGNOSTIC <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$DIAGNOSTIC)
+prop.table(table(patient_level_2016$DIAGNOSTIC))
+
+##ENDODONTICS
+patient_level_2016$ENDODONTICS <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$ENDODONTICS)
+prop.table(table(patient_level_2016$ENDODONTICS))
+
+##ORAL & MAXILLOFACIAL SURGERY
+patient_level_2016$ORAL_and_MAXILLOFACIAL_SURGERY <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$ORAL_and_MAXILLOFACIAL_SURGERY)
+prop.table(table(patient_level_2016$ORAL_and_MAXILLOFACIAL_SURGERY))
+
+##PERIODONTICS
+patient_level_2016$PERIODONTICS <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$PERIODONTICS)
+prop.table(table(patient_level_2016$PERIODONTICS))
+
+##PREVENTIVE
+patient_level_2016$PREVENTIVE <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$PREVENTIVE)
+prop.table(table(patient_level_2016$PREVENTIVE))
+
+##PROSTHODONTICS
+patient_level_2016$PROSTHODONTICS <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("PROSTHODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$PROSTHODONTICS)
+prop.table(table(patient_level_2016$PROSTHODONTICS))
+
+##RESTORATIVE
+patient_level_2016$RESTORATIVE <- as.vector(sapply(patient_level_2016$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2016$RESTORATIVE)
+prop.table(table(patient_level_2016$RESTORATIVE))
 
 ```
 
@@ -558,6 +679,46 @@ round(prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT)), 3)
 table(patient_level_2017$HEALTH_PLANNING_REGION)
 round(prop.table(table(patient_level_2017$HEALTH_PLANNING_REGION)), 3)
 
+#CDT category
+##ADJUNCTIVE GENERAL SERVICES
+patient_level_2017$ADJUNCTIVE_GENERAL_SERVICES <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("ADJUNCTIVE GENERAL SERVICES" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$ADJUNCTIVE_GENERAL_SERVICES)
+prop.table(table(patient_level_2017$ADJUNCTIVE_GENERAL_SERVICES))
+
+##DIAGNOSTIC
+patient_level_2017$DIAGNOSTIC <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$DIAGNOSTIC)
+prop.table(table(patient_level_2017$DIAGNOSTIC))
+
+##ENDODONTICS
+patient_level_2017$ENDODONTICS <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$ENDODONTICS)
+prop.table(table(patient_level_2017$ENDODONTICS))
+
+##ORAL & MAXILLOFACIAL SURGERY
+patient_level_2017$ORAL_and_MAXILLOFACIAL_SURGERY <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$ORAL_and_MAXILLOFACIAL_SURGERY)
+prop.table(table(patient_level_2017$ORAL_and_MAXILLOFACIAL_SURGERY))
+
+##PERIODONTICS
+patient_level_2017$PERIODONTICS <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$PERIODONTICS)
+prop.table(table(patient_level_2017$PERIODONTICS))
+
+##PREVENTIVE
+patient_level_2017$PREVENTIVE <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$PREVENTIVE)
+prop.table(table(patient_level_2017$PREVENTIVE))
+
+##PROSTHODONTICS
+patient_level_2017$PROSTHODONTICS <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("PROSTHODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$PROSTHODONTICS)
+prop.table(table(patient_level_2017$PROSTHODONTICS))
+
+##RESTORATIVE
+patient_level_2017$RESTORATIVE <- as.vector(sapply(patient_level_2017$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2017$RESTORATIVE)
+prop.table(table(patient_level_2017$RESTORATIVE))
 
 ```
 
@@ -687,6 +848,46 @@ round(prop.table(table(patient_level_2018$HEALTH_PLANNING_DISTRICT)), 3)
 table(patient_level_2018$HEALTH_PLANNING_REGION)
 round(prop.table(table(patient_level_2018$HEALTH_PLANNING_REGION)), 3)
 
+#CDT category
+##ADJUNCTIVE GENERAL SERVICES
+patient_level_2018$ADJUNCTIVE_GENERAL_SERVICES <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("ADJUNCTIVE GENERAL SERVICES" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$ADJUNCTIVE_GENERAL_SERVICES)
+prop.table(table(patient_level_2018$ADJUNCTIVE_GENERAL_SERVICES))
+
+##DIAGNOSTIC
+patient_level_2018$DIAGNOSTIC <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$DIAGNOSTIC)
+prop.table(table(patient_level_2018$DIAGNOSTIC))
+
+##ENDODONTICS
+patient_level_2018$ENDODONTICS <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$ENDODONTICS)
+prop.table(table(patient_level_2018$ENDODONTICS))
+
+##ORAL & MAXILLOFACIAL SURGERY
+patient_level_2018$ORAL_and_MAXILLOFACIAL_SURGERY <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$ORAL_and_MAXILLOFACIAL_SURGERY)
+prop.table(table(patient_level_2018$ORAL_and_MAXILLOFACIAL_SURGERY))
+
+##PERIODONTICS
+patient_level_2018$PERIODONTICS <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$PERIODONTICS)
+prop.table(table(patient_level_2018$PERIODONTICS))
+
+##PREVENTIVE
+patient_level_2018$PREVENTIVE <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$PREVENTIVE)
+prop.table(table(patient_level_2018$PREVENTIVE))
+
+##PROSTHODONTICS
+patient_level_2018$PROSTHODONTICS <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("PROSTHODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$PROSTHODONTICS)
+prop.table(table(patient_level_2018$PROSTHODONTICS))
+
+##RESTORATIVE
+patient_level_2018$RESTORATIVE <- as.vector(sapply(patient_level_2018$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP==x)], 1, 0)}))
+table(patient_level_2018$RESTORATIVE)
+prop.table(table(patient_level_2018$RESTORATIVE))
 
 ```
 
