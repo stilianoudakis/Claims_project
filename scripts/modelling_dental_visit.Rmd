@@ -1,0 +1,176 @@
+---
+title: "Modelling"
+author: "Spiro Stilianoudakis"
+date: "9/24/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Read in Eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+
+dim(eligibility) #103204    156
+length(unique(eligibility$srecip)) #103204
+
+#keeping only necessary variables
+vars <- c("srecip", 
+          "Overall_Age_at_earliest_enrollment",
+          "Overall_Citizen",
+          "Overall_Region",
+          "Overall_Race",
+          "Overall_R_FIPS",
+          "HEALTH_PLANNING_DISTRICT",
+          "HEALTH_PLANNING_REGION",
+          "months_enrolled",
+          "months_enrolled_cat",
+          "FY2015",
+          "FY2016",
+          "FY2017",
+          "FY2018")
+eligibility <- eligibility[, which(names(eligibility) %in% vars)]
+dim(eligibility) #103204     14
+```
+
+# Read in Claims data
+
+```{r}
+claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+                    sheet = "Pregnant_claims_2015_2018",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+dim(claims) #184976     41
+```
+
+# Creating response vector based on if patients (SRECIP) in eligibility are in claims
+
+```{r}
+mydata <- eligibility
+
+mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique(claims$SRECIP), "Yes", "No"))
+
+table(mydata$dental_visit)
+#   No   Yes 
+#86313 16891 
+prop.table(table(mydata$dental_visit))
+#       No       Yes 
+#0.8363339 0.1636661 
+```
+
+# Classifying patients as HPSA
+
+```{r}
+#reading in hpsa data
+hpsa_data <- read.csv("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/HPSA_data.csv", 
+                      header = TRUE,
+                      colClasses = c("character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character"))
+dim(hpsa_data) #60 10
+
+hpsa_fips <- c(hpsa_data$R_FIPS,
+               hpsa_data$R_FIPS2,
+               hpsa_data$R_FIPS3)
+hpsa_fips <- hpsa_fips[-which(hpsa_fips=="")]
+
+mydata$HPSA_status <- as.factor(sapply(mydata$Overall_R_FIPS, function(x){ifelse(x %in% hpsa_fips, "Yes", "No")}))
+table(mydata$HPSA_status)
+#   No   Yes 
+#63909 39295
+prop.table(table(mydata$HPSA_status))
+#       No       Yes 
+#0.6192493 0.3807507 
+```
+
+#creating age category
+
+##remove patients with age >50
+
+```{r}
+
+mydata <- mydata[-which(mydata$Overall_Age_at_earliest_enrollment>50),]
+dim(mydata) #103169     16
+
+```
+
+##categorizing
+
+```{r}
+
+mydata$Age_category <- ifelse((mydata$Overall_Age_at_earliest_enrollment >= 21 & mydata$Overall_Age_at_earliest_enrollment < 31), "21-30",
+                              ifelse((mydata$Overall_Age_at_earliest_enrollment >= 31 & mydata$Overall_Age_at_earliest_enrollment < 41), "31-40", "41-50"))
+table(mydata$Age_category)
+#21-30 31-40 41-50 
+#76611 25030  1528 
+
+```
+
+#removing missing citizenship status
+
+```{r}
+mydata <- mydata[-which(mydata$Overall_Citizen=="Missing"),]
+dim(mydata) #103165     17
+```
+
+
+# Reorder and clean data for modelling
+
+```{r}
+
+mydata_final <- mydata[,c(15,2,3,5,16,17)]
+
+mydata_final$Overall_Race <- factor(mydata_final$Overall_Race, levels=c("White", "Black", "Native American/Asian", "Hispanic", "Other"))
+mydata_final$Overall_Citizen <- factor(mydata_final$Overall_Citizen, levels=c("US (or naturalized) citizen", "Non-US citizen"))
+mydata_final$Overall_Region <- factor(mydata_final$Overall_Region)
+mydata_final$Age_category <- factor(mydata_final$Age_category, levels=c("21-30", "31-40", "41-50"))
+str(mydata_final)
+```
+
+# Modelling
+
+## logistic regression
+
+```{r}
+model1 <- glm(dental_visit ~ .,
+              family=binomial(link='logit'),
+              data=mydata_final)
+summary(model1)
+anova(model1, test="Chisq")
+pR2(model1)
+
+round(exp(cbind(coef(model1), confint(model1))) ,3) 
+```
+
