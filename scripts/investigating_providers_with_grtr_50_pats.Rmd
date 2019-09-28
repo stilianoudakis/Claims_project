@@ -1,0 +1,151 @@
+---
+title: "Investigating providers with > 50 patients"
+author: "Spiro Stilianoudakis"
+date: "9/27/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+```
+
+# Set working directory
+
+```{r}
+setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data")
+```
+
+# Reading in unique claims
+
+```{r}
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+# Separating billing provider name into first and last
+
+```{r}
+unique_claims2 <- extract(unique_claims, BillIng_Provider_name, c("ProviderLastName", "ProviderFirstName"), "([^ ]+) (.*)")
+unique_claims2$ProviderFirstName <- toupper(unique_claims2$ProviderFirstName)
+unique_claims2$ProviderLastName <- toupper(unique_claims2$ProviderLastName)
+
+```
+
+# Investigating providers with > 50 patients
+
+```{r}
+#unique providers
+##all years
+unique_patients <- unique_claims2 %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+
+##2015
+unique_patients_2015 <- unique_claims2 %>%
+  filter(FY=="2015") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+
+##2016
+unique_patients_2016 <- unique_claims2 %>%
+  filter(FY=="2016") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+
+##2017
+unique_patients_2017 <- unique_claims2 %>%
+  filter(FY=="2017") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+
+##2018
+unique_patients_2018 <- unique_claims2 %>%
+  filter(FY=="2018") %>%
+  group_by(ProviderLastName, ProviderFirstName) %>%
+  summarize(n = length(unique(SRECIP)))
+
+greater50pats <- data.frame(FirstName = c(unique_patients$ProviderFirstName[which(unique_patients$n>50)], 
+                                          unique_patients_2015$ProviderFirstName[which(unique_patients_2015$n>50)],
+                                          unique_patients_2016$ProviderFirstName[which(unique_patients_2016$n>50)],
+                                          unique_patients_2017$ProviderFirstName[which(unique_patients_2017$n>50)], 
+                                          unique_patients_2018$ProviderFirstName[which(unique_patients_2018$n>50)]),
+                            LastName = c(unique_patients$ProviderLastName[which(unique_patients$n>50)], 
+                                          unique_patients_2015$ProviderLastName[which(unique_patients_2015$n>50)],
+                                          unique_patients_2016$ProviderLastName[which(unique_patients_2016$n>50)],
+                                          unique_patients_2017$ProviderLastName[which(unique_patients_2017$n>50)], 
+                                          unique_patients_2018$ProviderLastName[which(unique_patients_2018$n>50)]))
+dim(greater50pats)
+#180   2
+greater50pats <- greater50pats[!duplicated(greater50pats),]
+dim(greater50pats)
+#126   2
+
+greater50pats$fy2015 <- ifelse((greater50pats$FirstName %in% unique_patients_2015$ProviderFirstName[which(unique_patients_2015$n>50)]) 
+                               & (greater50pats$LastName %in% unique_patients_2015$ProviderLastName[which(unique_patients_2015$n>50)]), 1, 0)
+greater50pats$fy2016 <- ifelse((greater50pats$FirstName %in% unique_patients_2016$ProviderFirstName[which(unique_patients_2016$n>50)]) 
+                               & (greater50pats$LastName %in% unique_patients_2016$ProviderLastName[which(unique_patients_2016$n>50)]), 1, 0)
+greater50pats$fy2017 <- ifelse((greater50pats$FirstName %in% unique_patients_2017$ProviderFirstName[which(unique_patients_2017$n>50)]) 
+                               & (greater50pats$LastName %in% unique_patients_2017$ProviderLastName[which(unique_patients_2017$n>50)]), 1, 0)
+greater50pats$fy2018 <- ifelse((greater50pats$FirstName %in% unique_patients_2018$ProviderFirstName[which(unique_patients_2018$n>50)]) 
+                               & (greater50pats$LastName %in% unique_patients_2018$ProviderLastName[which(unique_patients_2018$n>50)]), 1, 0)
+
+claims_dat <- unique_claims2[, c("ProviderFirstName", 
+                                 "ProviderLastName", 
+                                 "servicing_provider_county", 
+                                 "Servicing_Provider_City",
+                                 "BillIng_Provider_City", 
+                                 "HEALTH_PLANNING_DISTRICT", 
+                                 "Overall_Region")]
+claims_dat <- claims_dat[!duplicated(claims_dat[,1:2]),]
+greater50pats <- left_join(greater50pats, 
+                           claims_dat, 
+                           by = c("FirstName" = "ProviderFirstName", "LastName" = "ProviderLastName"))
+```
+
+## All years
+
+```{r}
+table(greater50pats$HEALTH_PLANNING_DISTRICT, exclude = "ifany")
+table(greater50pats$Overall_Region, exclude = "ifany")
+```
+
+## 2015 
+
+```{r}
+table(greater50pats$HEALTH_PLANNING_DISTRICT[which(greater50pats$fy2015==1)], exclude = "ifany")
+table(greater50pats$Overall_Region[which(greater50pats$fy2015==1)], exclude = "ifany")
+```
+
+## 2016 
+
+```{r}
+table(greater50pats$HEALTH_PLANNING_DISTRICT[which(greater50pats$fy2016==1)], exclude = "ifany")
+table(greater50pats$Overall_Region[which(greater50pats$fy2016==1)], exclude = "ifany")
+```
+
+## 2017 
+
+```{r}
+table(greater50pats$HEALTH_PLANNING_DISTRICT[which(greater50pats$fy2017==1)], exclude = "ifany")
+table(greater50pats$Overall_Region[which(greater50pats$fy2017==1)], exclude = "ifany")
+```
+
+## 2018 
+
+```{r}
+table(greater50pats$HEALTH_PLANNING_DISTRICT[which(greater50pats$fy2018==1)], exclude = "ifany")
+table(greater50pats$Overall_Region[which(greater50pats$fy2018==1)], exclude = "ifany")
+```
