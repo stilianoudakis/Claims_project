@@ -21,6 +21,13 @@ library(sas7bdat)
 library(lubridate)
 library(tidyr)
 library(tableone)
+library(pscl)
+library(pROC)
+library(DMwR)
+library(caret)
+library(rattle)
+library(randomForest)
+library(reprtree)
 ```
 
 # Set working directory
@@ -115,62 +122,293 @@ prop.table(table(mydata$HPSA_status))
 #0.6192493 0.3807507 
 ```
 
-#creating age category
 
-##remove patients with age >50
-
-```{r}
-
-mydata <- mydata[-which(mydata$Overall_Age_at_earliest_enrollment>50),]
-dim(mydata) #103169     16
-
-```
-
-##categorizing
+#Categorizing and cleaning
 
 ```{r}
+#age category
+mydata$Age_category <- ifelse(mydata$Overall_Age_at_earliest_enrollment < 30, "under 30", "over 30")
 
-mydata$Age_category <- ifelse((mydata$Overall_Age_at_earliest_enrollment >= 21 & mydata$Overall_Age_at_earliest_enrollment < 31), "21-30",
-                              ifelse((mydata$Overall_Age_at_earliest_enrollment >= 31 & mydata$Overall_Age_at_earliest_enrollment < 41), "31-40", "41-50"))
+mydata$Age_category <- factor(mydata$Age_category, levels=c("under 30", "over 30"))
 table(mydata$Age_category)
-#21-30 31-40 41-50 
-#76611 25030  1528 
+#under 30  over 30 
+#   71477    31727 
 
-```
+#race
+mydata$Overall_Race[which(mydata$Overall_Race=="Hispanic" |
+                            mydata$Overall_Race=="Native American/Asian" |
+                            mydata$Overall_Race=="Other")] <- "Other"
+mydata$Overall_Race <- factor(mydata$Overall_Race, levels=c("White", "Black", "Other"))
+table(mydata$Overall_Race)
 
-#removing missing citizenship status
-
-```{r}
+#citizenship
 mydata <- mydata[-which(mydata$Overall_Citizen=="Missing"),]
-dim(mydata) #103165     17
-```
+dim(mydata) #103200     17
+mydata$Overall_Citizen <- factor(mydata$Overall_Citizen, levels=c("US (or naturalized) citizen", "Non-US citizen"))
+table(mydata$Overall_Citizen)
+#US (or naturalized) citizen              Non-US citizen 
+#                      92038                       11162 
 
+#months enrolled
+mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
+mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
+table(mydata$months_enrolled_cat)
 
-# Reorder and clean data for modelling
+#region
+mydata$Overall_Region <- factor(mydata$Overall_Region)
 
-```{r}
+#2015
+mydata$FY2015 <- factor(ifelse(mydata$FY2015==1, "Yes", "No"))
+table(mydata$FY2015)
 
-mydata_final <- mydata[,c(15,2,3,5,16,17)]
+#2016
+mydata$FY2016 <- factor(ifelse(mydata$FY2016==1, "Yes", "No"))
+table(mydata$FY2016)
 
-mydata_final$Overall_Race <- factor(mydata_final$Overall_Race, levels=c("White", "Black", "Native American/Asian", "Hispanic", "Other"))
-mydata_final$Overall_Citizen <- factor(mydata_final$Overall_Citizen, levels=c("US (or naturalized) citizen", "Non-US citizen"))
-mydata_final$Overall_Region <- factor(mydata_final$Overall_Region)
-mydata_final$Age_category <- factor(mydata_final$Age_category, levels=c("21-30", "31-40", "41-50"))
+#2017
+mydata$FY2017 <- factor(ifelse(mydata$FY2017==1, "Yes", "No"))
+table(mydata$FY2017)
+
+#2018
+mydata$FY2018 <- factor(ifelse(mydata$FY2018==1, "Yes", "No"))
+table(mydata$FY2018)
+
+mydata_final <- mydata
+
 str(mydata_final)
 ```
 
-# Modelling
 
-## logistic regression
+# Table of demographic variables
 
 ```{r}
-model1 <- glm(dental_visit ~ .,
+CreateTableOne(vars = c("Overall_Race",
+                        "Overall_Citizen",
+                        "Overall_Region",
+                        "HPSA_status",
+                        "Age_category",
+                        "Overall_Age_at_earliest_enrollment",
+                        "FY2015",
+                        "FY2016",
+                        "FY2017",
+                        "FY2018",
+                        "months_enrolled",
+                        "months_enrolled_cat"),
+               strata = "dental_visit",
+               data = mydata_final)
+```
+
+
+# Modelling
+
+## Logistic regression on full data
+
+```{r}
+#stepwise results:
+#                  Df Deviance   AIC
+#<none>                  91252 91280
+#- HPSA_status      1    91275 91301
+#- Age_category     2    91281 91305
+#- Overall_Race     4    91322 91342
+#- Overall_Citizen  1    91334 91360
+#- Overall_Region   5    91625 91643
+#no variables were removed
+model1 <- glm(dental_visit ~ HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled +
+                             FY2015 +
+                             FY2016 +
+                             FY2017 +
+                             FY2018,
               family=binomial(link='logit'),
               data=mydata_final)
 summary(model1)
-anova(model1, test="Chisq")
-pR2(model1)
-
 round(exp(cbind(coef(model1), confint(model1))) ,3) 
+```
+
+
+### Diagnostics
+
+```{r}
+pR2(model1)
+#       llh    llhNull         G2   McFadden       r2ML       r2CU 
+#-45625.784 -45997.254    742.940      0.008      0.007      0.012 
+
+ll.null <- model1$null.deviance/-2
+ll.proposed <- model1$deviance/-2
+ 
+## McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+(ll.null - ll.proposed) / ll.null
+ 
+## The p-value for the R^2
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(model1$coefficients)-1))
+
+
+par(mfrow=c(2,2))
+plot(model1)
+par(mfrow=c(1,1))
+
+sample_size <- nrow(mydata_final)
+cooksd <- cooks.distance(model1)
+plot(cooksd, main="Influential Obs by Cooks distance")
+abline(h = 4/sample_size, col="red")  # add cutoff line
+text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>4/sample_size, names(cooksd),""), col="red") 
+
+length(which(cooksd>4/sample_size))
+#6497
+
+
+predicted.data <- data.frame(
+  probability.of.dv=model1$fitted.values,
+  dv=mydata_final$dental_visit)
+ 
+predicted.data <- predicted.data[
+  order(predicted.data$probability.of.dv, decreasing=FALSE),]
+predicted.data$rank <- 1:nrow(predicted.data)
+ 
+## Lastly, we can plot the predicted probabilities for each sample having
+## heart disease and color by whether or not they actually had heart disease
+ggplot(data=predicted.data, aes(x=rank, y=probability.of.dv)) +
+  geom_point(aes(color=dv), alpha=1, shape=4, stroke=2) +
+  xlab("Index") +
+  ylab("Predicted probability of a dental visit")
+ 
+prob <- predict(model1, type = "response")
+rocp <- roc(mydata_final$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
+```
+
+## Removing obs with high cooks distances
+
+```{r}
+mydata_final_filt <- mydata_final[-which(cooksd>(4/sample_size)),]
+dim(mydata_final_filt) #96703     6
+table(mydata_final_filt$dental_visit)
+#   No   Yes 
+#86309 10394
+
+model_filt <- glm(dental_visit ~ HPSA_status + Age_category + Overall_Race + Overall_Citizen + Overall_Region,
+              family=binomial(link='logit'),
+              data=mydata_final_filt)
+summary(model_filt)
+
+#null model
+glm.null <- glm(dental_visit ~ 1, data = mydata_final_filt, family = binomial(link='logit'))
+#full model
+glm.full <- glm(dental_visit ~ ., data = mydata_final_filt, family = binomial(link='logit'))
+  
+best.fit.bwd = step(glm.full,
+                      data = mydata_final_filt, 
+                      direction="backward",
+                      trace=2)
+  
+round(exp(cbind(coef(model_filt), confint(model_filt))) ,3) 
+
+ll.null <- model_filt$null.deviance/-2
+ll.proposed <- model_filt$deviance/-2
+ 
+## McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+(ll.null - ll.proposed) / ll.null
+ 
+## The p-value for the R^2
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(model_filt$coefficients)-1))
+
+prob <- predict(model_filt, type = "response")
+rocp <- roc(mydata_final_filt$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
+```
+
+
+## Logistic regression on balanced data
+
+### RUS
+
+```{r}
+#rus
+set.seed(321)
+sampids <- sample(x = which(mydata_final_filt$dental_visit=="No"),
+                        size = length(which(mydata_final_filt$dental_visit=="Yes")),
+                        replace = FALSE)
+mydata_final_filt_rus <- rbind.data.frame(mydata_final_filt[which(mydata_final_filt$dental_visit=="Yes"),],
+                        mydata_final_filt[sampids,])
+##Randomly shuffle the data
+set.seed(321)
+mydata_final_filt_rus <- mydata_final_filt_rus[sample(nrow(mydata_final_filt_rus)),]
+table(mydata_final_filt_rus$dental_visit)
+
+model2 <- glm(dental_visit ~ HPSA_status + Age_category + Overall_Race + Overall_Citizen + Overall_Region,
+              family=binomial(link='logit'),
+              data=mydata_final_filt_rus)
+summary(model2)
+
+ll.null <- model2$null.deviance/-2
+ll.proposed <- model2$deviance/-2
+ 
+## McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+(ll.null - ll.proposed) / ll.null
+ 
+## The p-value for the R^2
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(model2$coefficients)-1))
+
+prob <- predict(model2, type = "response")
+rocp <- roc(mydata_final_filt_rus$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
+```
+
+### SMOTE
+
+```{r}
+set.seed(123)
+mydata_final_filt_smote <- SMOTE(dental_visit ~ .,
+                            data=mydata_final_filt, 
+                            perc.over = 100, 
+                            perc.under = 200)
+set.seed(123)
+mydata_final_filt_smote <- mydata_final_filt_smote[sample(nrow(mydata_final_filt_smote)),]
+dim(mydata_final_filt_smote)
+table(mydata_final_filt_smote$dental_visit)
+
+model3 <- glm(dental_visit ~ HPSA_status + Age_category + Overall_Race + Overall_Citizen + Overall_Region,
+              family=binomial(link='logit'),
+              data=mydata_final_filt_smote)
+summary(model3)
+
+ll.null <- model3$null.deviance/-2
+ll.proposed <- model3$deviance/-2
+ 
+## McFadden's Pseudo R^2 = [ LL(Null) - LL(Proposed) ] / LL(Null)
+(ll.null - ll.proposed) / ll.null
+ 
+## The p-value for the R^2
+1 - pchisq(2*(ll.proposed - ll.null), df=(length(model3$coefficients)-1))
+
+prob <- predict(model3, type = "response")
+rocp <- roc(mydata_final_filt_smote$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
+```
+
+## Decision Tree
+
+```{r}
+x <- model.matrix(~HPSA_status + 
+                   Overall_Race + 
+                   Overall_Citizen + 
+                   Overall_Region, data = mydata_final)
+tree_data <- cbind.data.frame(dental_visit=mydata_final$dental_visit,
+                              x[,-1],
+                              Overall_Age_at_earliest_enrollment=mydata_final$Overall_Age_at_earliest_enrollment,
+                              months_enrolled=mydata_final$months_enrolled)
+names(tree_data) <- make.names(colnames(tree_data))
+
+model.tree = train(dental_visit ~ ., 
+                  data=tree_data, 
+                  method="rpart", 
+                  trControl = trainControl(method = "cv", number=5),
+                  control =rpart.control(minsplit =1,minbucket=1, cp=0))
+
+plot(model.tree$finalModel, uniform=TRUE,
+     main="Classification Tree")
+text(model.tree$finalModel$finalModel, use.n.=TRUE, all=TRUE, cex=.8)
+
+fancyRpartPlot(model.tree$finalModel)
 ```
 

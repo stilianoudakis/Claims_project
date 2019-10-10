@@ -119,6 +119,17 @@ claims$CDT_category <- ifelse(claims$proc_code %in% paste0(0,c(100:999)), "DIAGN
                                                                                              ifelse(claims$proc_code %in% c(8000:8999), "ORTHODONTICS",
                                                                                                     ifelse(claims$proc_code %in% c(9000:9999), "ADJUNCTIVE GENERAL SERVICES", "UNKNOWN"))))))))))))
 
+claims$CDT_category[which(claims$CDT_category=="ADJUNCTIVE GENERAL SERVICES" | claims$CDT_category=="PROSTHODONTICS")] <- "OTHER"
+
+claims$CDT_category <- factor(claims$CDT_category, levels=c("PREVENTIVE",
+                                                            "DIAGNOSTIC",
+                                                            "RESTORATIVE",
+                                                            "PERIODONTICS",
+                                                            "ENDODONTICS",
+                                                            "ORAL & MAXILLOFACIAL SURGERY",
+                                                            "OTHER"))
+
+table(claims$CDT_category)
 ```
 
 # Identifying unique claims

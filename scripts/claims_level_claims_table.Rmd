@@ -133,3 +133,49 @@ cbind.data.frame( #all years
 				 )
 ```
 
+# Stacked barplot
+
+```{r}
+Year <- c(rep("2015", 7),
+          rep("2016", 7),
+          rep("2017", 7),
+          rep("2018", 7))
+Claim_Type <- rep(c("Preventative",
+                    "Diagnostic",
+                    "Restorative",
+                    "Periodontics",
+                    "Endodontics",
+                    "Oral & Maxillofacial Surgery",
+                    "Other"), 4)
+Value <- c(as.vector(table(claim_level_2015$CDT_category)),
+           as.vector(table(claim_level_2016$CDT_category)),
+           as.vector(table(claim_level_2017$CDT_category)),
+           as.vector(table(claim_level_2018$CDT_category)))
+
+data <- cbind.data.frame(Year, Claim_Type, Value)
+data$Claim_Type <- factor(data$Claim_Type, levels=c("Preventative",
+                                                       "Diagnostic",
+                                                       "Restorative",
+                                                       "Periodontics",
+                                                       "Endodontics",
+                                                       "Oral & Maxillofacial Surgery",
+                                                       "Other"))
+
+ggplot(data, aes(fill=Claim_Type, y=Value, x=Year)) + 
+  geom_bar(position="fill", stat="identity") +
+  ylab("Percent") +
+  scale_fill_discrete(name="Claim Type")+
+  theme_bw() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(size=15),
+        axis.text.y = element_text(size = 15),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        strip.text.x = element_text(size = 15),
+        panel.spacing = unit(2, "lines"),
+        legend.text=element_text(size=15),
+        legend.title=element_text(size=20))
+  
+  
+```
+
