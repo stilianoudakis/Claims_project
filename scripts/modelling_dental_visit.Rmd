@@ -90,6 +90,7 @@ prop.table(table(mydata$dental_visit))
 #0.8363339 0.1636661 
 ```
 
+<!--
 # Classifying patients as HPSA
 
 ```{r}
@@ -121,25 +122,25 @@ prop.table(table(mydata$HPSA_status))
 #       No       Yes 
 #0.6192493 0.3807507 
 ```
-
+-->
 
 #Categorizing and cleaning
 
 ```{r}
 #age category
-mydata$Age_category <- ifelse(mydata$Overall_Age_at_earliest_enrollment < 30, "under 30", "over 30")
+#mydata$Age_category <- ifelse(mydata$Overall_Age_at_earliest_enrollment < 30, "under 30", "over 30")
 
-mydata$Age_category <- factor(mydata$Age_category, levels=c("under 30", "over 30"))
-table(mydata$Age_category)
+#mydata$Age_category <- factor(mydata$Age_category, levels=c("under 30", "over 30"))
+#table(mydata$Age_category)
 #under 30  over 30 
 #   71477    31727 
 
 #race
-mydata$Overall_Race[which(mydata$Overall_Race=="Hispanic" |
-                            mydata$Overall_Race=="Native American/Asian" |
-                            mydata$Overall_Race=="Other")] <- "Other"
-mydata$Overall_Race <- factor(mydata$Overall_Race, levels=c("White", "Black", "Other"))
-table(mydata$Overall_Race)
+#mydata$Overall_Race[which(mydata$Overall_Race=="Hispanic" |
+#                            mydata$Overall_Race=="Native American/Asian" |
+#                            mydata$Overall_Race=="Other")] <- "Other"
+#mydata$Overall_Race <- factor(mydata$Overall_Race, levels=c("White", "Black", "Other"))
+#table(mydata$Overall_Race)
 
 #citizenship
 mydata <- mydata[-which(mydata$Overall_Citizen=="Missing"),]
@@ -150,9 +151,9 @@ table(mydata$Overall_Citizen)
 #                      92038                       11162 
 
 #months enrolled
-mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_cat)
+#mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_cat)
 
 #region
 mydata$Overall_Region <- factor(mydata$Overall_Region)

@@ -57,7 +57,7 @@ dim(eligibility) #103204    156
 # Joining dental claims with eligibility data
 
 ```{r}
-cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment")
+cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment", "months_enrolled", "Overall_R_FIPS")
 
 claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], by = c("SRECIP" = "srecip"))
 
@@ -82,11 +82,34 @@ claims$FY_2018 <- ifelse(claims$FY=="2018", 1, 0)
 ##create age category from eligibility
 
 ```{r}
-claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 21, "<21",
-                                   ifelse(claims$Overall_Age_at_earliest_enrollment>= 21 & claims$Overall_Age_at_earliest_enrollment < 31, "21-30",
-                                          ifelse(claims$Overall_Age_at_earliest_enrollment >= 31 & claims$Overall_Age_at_earliest_enrollment < 41, "31-40",
-                                                 ifelse(claims$Overall_Age_at_earliest_enrollment >= 41 & claims$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
-claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+#claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 21, "<21",
+#                                   ifelse(claims$Overall_Age_at_earliest_enrollment>= 21 & claims$Overall_Age_at_earliest_enrollment < 31, "21-30",
+#                                          ifelse(claims$Overall_Age_at_earliest_enrollment >= 31 & claims$Overall_Age_at_earliest_enrollment < 41, "31-40",
+#                                                 ifelse(claims$Overall_Age_at_earliest_enrollment >= 41 & claims$Overall_Age_at_earliest_enrollment < 51, "41-50", ">50"))))
+#claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("<21", "21-30", "31-40", "41-50", ">50"))
+
+claims$age_cat_eligibility <- ifelse(claims$Overall_Age_at_earliest_enrollment < 30, "under 30", "over 30")
+claims$age_cat_eligibility <- factor(claims$age_cat_eligibility, levels=c("under 30", "over 30"))
+
+```
+
+##recategorizing race
+
+```{r}
+claims$Overall_Race[which(claims$Overall_Race=="Hispanic" |
+                             claims$Overall_Race=="Native American/Asian" |
+                             claims$Overall_Race=="Other")] <- "Other"
+
+table(claims$Overall_Race)
+```
+
+##categorizing months enrolled
+
+```{r}
+claims$months_enrolled_cat <- ifelse(claims$months_enrolled <= 10, "3-10 months", ">10 months")
+claims$months_enrolled_cat <- factor(claims$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
+table(claims$months_enrolled_cat)
 
 ```
 
@@ -132,6 +155,39 @@ claims$CDT_category <- factor(claims$CDT_category, levels=c("PREVENTIVE",
 table(claims$CDT_category)
 ```
 
+##HPSA
+
+```{r}
+#reading in hpsa data
+hpsa_data <- read.csv("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/HPSA_data.csv", 
+                      header = TRUE,
+                      colClasses = c("character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character",
+                                     "character"))
+dim(hpsa_data) #60 10
+
+hpsa_fips <- c(hpsa_data$R_FIPS,
+               hpsa_data$R_FIPS2,
+               hpsa_data$R_FIPS3)
+hpsa_fips <- hpsa_fips[-which(hpsa_fips=="")]
+
+claims$HPSA_status <- as.factor(sapply(claims$Overall_R_FIPS, function(x){ifelse(x %in% hpsa_fips, "Yes", "No")}))
+table(claims$HPSA_status)
+#    No    Yes 
+#122992  56526 
+prop.table(table(claims$HPSA_status))
+#       No       Yes 
+#0.6851235 0.3148765 
+```
+
+
 # Identifying unique claims
 
 ## Claims with tooth number
@@ -140,7 +196,7 @@ table(claims$CDT_category)
 
 ```{r}
 claims_tooth <- claims[!is.na(claims$Tooth_Number),]
-dim(claims_tooth) #118618     53
+dim(claims_tooth) #118618     57
 table(claims_tooth$Tooth_Number, exclude = "ifany")
 
 claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -148,7 +204,7 @@ claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE)
 head(claims_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
 
 claims_nodup_tooth <- claims_tooth[!(duplicated(claims_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "Tooth_Number")])),]
-dim(claims_nodup_tooth) #118616    53
+dim(claims_nodup_tooth) #118616    57
 
 ```
 
@@ -158,7 +214,7 @@ dim(claims_nodup_tooth) #118616    53
 
 ```{r}
 claims_no_tooth <- claims[is.na(claims$Tooth_Number),]
-dim(claims_no_tooth) #60900    53
+dim(claims_no_tooth) #60900    57
 table(claims_no_tooth$Tooth_Number, exclude = "ifany")
 
 claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -166,7 +222,7 @@ claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasin
 head(claims_no_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
 
 claims_nodup_no_tooth <- claims_no_tooth[!(duplicated(claims_no_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "AMOUNT_PAID")])),]
-dim(claims_nodup_no_tooth) #60900    53
+dim(claims_nodup_no_tooth) #60900    57
 
 ```
 
@@ -174,7 +230,7 @@ dim(claims_nodup_no_tooth) #60900    53
 
 ```{r}
 unique_claims <- rbind.data.frame(claims_nodup_no_tooth, claims_nodup_tooth)
-dim(unique_claims) #179516     53
+dim(unique_claims) #179516     57
 
 ```
 

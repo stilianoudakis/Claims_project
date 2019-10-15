@@ -21,6 +21,8 @@ library(sas7bdat)
 library(lubridate)
 library(tidyr)
 library(tableone)
+library(reshape2)
+library(tidyr)
 ```
 
 # Set working directory
@@ -176,6 +178,6 @@ ggplot(data, aes(fill=Claim_Type, y=Value, x=Year)) +
         legend.text=element_text(size=15),
         legend.title=element_text(size=20))
   
-  
+spread(data, Year, Value)  
 ```
 

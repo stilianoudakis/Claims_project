@@ -35,6 +35,18 @@ setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project
 unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
 ```
 
+<!--
+# Reading in eligibility
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+
+dim(eligibility) #103204    156
+length(unique(eligibility$srecip)) #103204
+
+```
+-->
+
 # Determining the frequency of different fiscal years each subject had a claim in
 
 ```{r}
@@ -49,6 +61,7 @@ d$SRECIP[which(d$x==4)]
 unique_claims[which(unique_claims$SRECIP=="312400495901"),]
 ```
 
+<!--
 # Recoding Race
 
 ```{r}
@@ -59,6 +72,7 @@ unique_claims$Overall_Race[which(unique_claims$Overall_Race=="Hispanic" |
 table(unique_claims$Overall_Race)
 
 ```
+-->
 
 # Patient level table using claims data (not mutually exclusive)
 
@@ -170,6 +184,10 @@ round(prop.table(table(patient_level$Overall_Race)), 3)
 #citizenship
 table(patient_level$Overall_Citizen)
 round(prop.table(table(patient_level$Overall_Citizen)), 3)
+
+#hpsa
+table(patient_level$HPSA_status)
+round(prop.table(table(patient_level$HPSA_status)), 3)
 
 #region
 table(patient_level$Overall_Region)
@@ -335,6 +353,10 @@ round(prop.table(table(patient_level_2015$Overall_Race)), 3)
 table(patient_level_2015$Overall_Citizen)
 round(prop.table(table(patient_level_2015$Overall_Citizen)), 3)
 
+#hpsa
+table(patient_level_2015$HPSA_status)
+round(prop.table(table(patient_level_2015$HPSA_status)), 3)
+
 #region
 table(patient_level_2015$Overall_Region)
 round(prop.table(table(patient_level_2015$Overall_Region)), 3)
@@ -481,7 +503,6 @@ num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
 mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 
-
 #age
 mean(patient_level_2016$Overall_Age_at_earliest_enrollment)
 sd(patient_level_2016$Overall_Age_at_earliest_enrollment)
@@ -497,6 +518,10 @@ round(prop.table(table(patient_level_2016$Overall_Race)), 3)
 #citizenship
 table(patient_level_2016$Overall_Citizen)
 round(prop.table(table(patient_level_2016$Overall_Citizen)), 3)
+
+#hpsa
+table(patient_level_2016$HPSA_status)
+round(prop.table(table(patient_level_2016$HPSA_status)), 3)
 
 #region
 table(patient_level_2016$Overall_Region)
@@ -644,7 +669,6 @@ num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
 mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 
-
 #age
 mean(patient_level_2017$Overall_Age_at_earliest_enrollment)
 sd(patient_level_2017$Overall_Age_at_earliest_enrollment)
@@ -660,6 +684,10 @@ round(prop.table(table(patient_level_2017$Overall_Race)), 3)
 #citizenship
 table(patient_level_2017$Overall_Citizen)
 round(prop.table(table(patient_level_2017$Overall_Citizen)), 3)
+
+#hpsa
+table(patient_level_2017$HPSA_status)
+round(prop.table(table(patient_level_2017$HPSA_status)), 3)
 
 #region
 table(patient_level_2017$Overall_Region)
@@ -807,7 +835,6 @@ num_ADJUNCTIVE_GENERAL_SERVICES <- unique_claims %>%
 mean(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 sd(num_ADJUNCTIVE_GENERAL_SERVICES$n)
 
-
 #age
 mean(patient_level_2018$Overall_Age_at_earliest_enrollment)
 sd(patient_level_2018$Overall_Age_at_earliest_enrollment)
@@ -823,6 +850,10 @@ round(prop.table(table(patient_level_2018$Overall_Race)), 3)
 #citizenship
 table(patient_level_2018$Overall_Citizen)
 round(prop.table(table(patient_level_2018$Overall_Citizen)), 3)
+
+#hpsa
+table(patient_level_2018$HPSA_status)
+round(prop.table(table(patient_level_2018$HPSA_status)), 3)
 
 #region
 table(patient_level_2018$Overall_Region)
@@ -888,6 +919,8 @@ cbind.data.frame( #all years
 				   "",
 				   t(t(paste0(table(patient_level$Overall_Citizen), " ", "(",round(prop.table(table(patient_level$Overall_Citizen)), 3)*100, ")"))),
 				   "",
+				   t(t(paste0(table(patient_level$HPSA_status), " ", "(",round(prop.table(table(patient_level$HPSA_status)), 3)*100, ")"))),
+				   "",
 				   t(t(paste0(table(patient_level$Overall_Region), " ", "(",round(prop.table(table(patient_level$Overall_Region)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
@@ -919,6 +952,8 @@ cbind.data.frame( #all years
 				   t(t(paste0(table(patient_level_2015$Overall_Race), " ", "(",round(prop.table(table(patient_level_2015$Overall_Race)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2015$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2015$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2015$HPSA_status), " ", "(",round(prop.table(table(patient_level_2015$HPSA_status)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2015$Overall_Region), " ", "(",round(prop.table(table(patient_level_2015$Overall_Region)), 3)*100, ")"))),
 				   "",
@@ -952,6 +987,8 @@ cbind.data.frame( #all years
 				   "",
 				   t(t(paste0(table(patient_level_2016$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2016$Overall_Citizen)), 3)*100, ")"))),
 				   "",
+				   t(t(paste0(table(patient_level_2016$HPSA_status), " ", "(",round(prop.table(table(patient_level_2016$HPSA_status)), 3)*100, ")"))),
+				   "",
 				   t(t(paste0(table(patient_level_2016$Overall_Region), " ", "(",round(prop.table(table(patient_level_2016$Overall_Region)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2016$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2016$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
@@ -984,6 +1021,8 @@ cbind.data.frame( #all years
 				   "",
 				   t(t(paste0(table(patient_level_2017$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2017$Overall_Citizen)), 3)*100, ")"))),
 				   "",
+				   t(t(paste0(table(patient_level_2017$HPSA_status), " ", "(",round(prop.table(table(patient_level_2017$HPSA_status)), 3)*100, ")"))),
+				   "",
 				   t(t(paste0(table(patient_level_2017$Overall_Region), " ", "(",round(prop.table(table(patient_level_2017$Overall_Region)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2017$HEALTH_PLANNING_DISTRICT), " ", "(",round(prop.table(table(patient_level_2017$HEALTH_PLANNING_DISTRICT)), 3)*100, ")"))),
@@ -1015,6 +1054,8 @@ cbind.data.frame( #all years
 				   t(t(paste0(table(patient_level_2018$Overall_Race), " ", "(",round(prop.table(table(patient_level_2018$Overall_Race)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2018$Overall_Citizen), " ", "(",round(prop.table(table(patient_level_2018$Overall_Citizen)), 3)*100, ")"))),
+				   "",
+				   t(t(paste0(table(patient_level_2018$HPSA_status), " ", "(",round(prop.table(table(patient_level_2018$HPSA_status)), 3)*100, ")"))),
 				   "",
 				   t(t(paste0(table(patient_level_2018$Overall_Region), " ", "(",round(prop.table(table(patient_level_2018$Overall_Region)), 3)*100, ")"))),
 				   "",
@@ -1105,5 +1146,6 @@ ggplot(data, aes(fill=Claim_Type, y=Count, x=Year)) +
         legend.text=element_text(size=15),
         legend.title=element_text(size=20))
   
+spread(data, Year, Value) 
 ```
 
