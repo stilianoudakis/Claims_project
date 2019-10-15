@@ -28,6 +28,8 @@ library(caret)
 library(rattle)
 library(randomForest)
 library(reprtree)
+library(car)
+library(ResourceSelection)
 ```
 
 # Set working directory
@@ -90,7 +92,7 @@ prop.table(table(mydata$dental_visit))
 #0.8363339 0.1636661 
 ```
 
-<!--
+
 # Classifying patients as HPSA
 
 ```{r}
@@ -122,7 +124,7 @@ prop.table(table(mydata$HPSA_status))
 #       No       Yes 
 #0.6192493 0.3807507 
 ```
--->
+
 
 #Categorizing and cleaning
 
@@ -227,6 +229,11 @@ model1 <- glm(dental_visit ~ HPSA_status +
               family=binomial(link='logit'),
               data=mydata_final)
 summary(model1)
+anova(model1, test="Chisq")
+Anova(model1, type="II", test="Wald")
+anova(model1,
+      update(model1, ~1),    
+      test="Chisq")
 round(exp(cbind(coef(model1), confint(model1))) ,3) 
 ```
 
@@ -234,6 +241,31 @@ round(exp(cbind(coef(model1), confint(model1))) ,3)
 ### Diagnostics
 
 ```{r}
+hoslem.test(model1$y, fitted(model1), g=10)
+
+plot(fitted(model1),
+     rstandard(model1))
+
+Data.final =
+   select(mydata,
+          dental_visit,
+          HPSA_status,
+          Overall_Age_at_earliest_enrollment,
+          Overall_Race,
+          Overall_Citizen,
+          Overall_Region,
+          months_enrolled)
+Data.final = na.omit(Data.final)
+Data.final$predy = predict(model1,
+                           type="response")
+### Plot
+
+plot(as.numeric(dental_visit) ~ predy,
+     data = Data.final,
+     pch = 16,
+     xlab="Predicted probability of 1 response",
+     ylab="Actual response")
+
 pR2(model1)
 #       llh    llhNull         G2   McFadden       r2ML       r2CU 
 #-45625.784 -45997.254    742.940      0.008      0.007      0.012 
