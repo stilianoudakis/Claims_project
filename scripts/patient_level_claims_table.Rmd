@@ -1166,6 +1166,6 @@ ggplot(data, aes(fill=Claim_Type, y=Count, x=Year)) +
         legend.text=element_text(size=15),
         legend.title=element_text(size=20))
   
-spread(data, Year, Value) 
+spread(data, Year, Count) 
 ```
 
