@@ -96,6 +96,22 @@ prop.table(table(mydata$dental_visit))
 #0.8363339 0.1636661 
 ```
 
+# Creating FY variables from claims data
+
+```{r}
+patient_level <- unique_claims[!duplicated(unique_claims$SRECIP),]
+patient_level$FY2015_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2015[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$FY2016_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2016[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$FY2017_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2017[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$FY2018_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2018[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$FYsum_claims <- rowSums(patient_level[, c("FY2015_claims", "FY2016_claims", "FY2017_claims", "FY2018_claims")])
+
+mydata <- left_join(mydata, patient_level[, c("SRECIP", "FY2015_claims", "FY2016_claims", "FY2017_claims", "FY2018_claims")], by=c("srecip"="SRECIP"))
+
+dim(mydata)
+
+```
+
 
 # Classifying patients as HPSA
 
@@ -549,10 +565,10 @@ dental_visit_table <- cbind.data.frame(
 
 names(dental_visit_table) <- c("Variable",
                               paste0("Total number of eligible patients that had dental visit (N=", nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),]), ")"),
-                              paste0("Eligible in 2015 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), ")"),
-                              paste0("Eligible in 2016 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes"),]), ")"),
-                              paste0("Eligible in 2017 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2017=="Yes" & mydata_final$dental_visit=="Yes"),]), ")"),
-                              paste0("Eligible in 2018 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2018=="Yes" & mydata_final$dental_visit=="Yes"),]), ")"))
+                              paste0("Eligible in 2015 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2015_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2016 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2016_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2017 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2017_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2018 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2018_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"))
 ```
 
 ## Dental services; stratifying by fiscal year (not mutually exclusive)
