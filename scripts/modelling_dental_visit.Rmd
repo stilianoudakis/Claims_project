@@ -96,22 +96,46 @@ prop.table(table(mydata$dental_visit))
 #0.8363339 0.1636661 
 ```
 
-# Creating FY variables from claims data
+# Creating variables from claims data
 
 ```{r}
 patient_level <- unique_claims[!duplicated(unique_claims$SRECIP),]
+
+#FY
+
 patient_level$FY2015_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2015[which(unique_claims$SRECIP %in% x)], 1, 0)})
 patient_level$FY2016_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2016[which(unique_claims$SRECIP %in% x)], 1, 0)})
 patient_level$FY2017_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2017[which(unique_claims$SRECIP %in% x)], 1, 0)})
 patient_level$FY2018_claims <- sapply(patient_level$SRECIP, function(x){ifelse(1 %in% unique_claims$FY_2018[which(unique_claims$SRECIP %in% x)], 1, 0)})
 patient_level$FYsum_claims <- rowSums(patient_level[, c("FY2015_claims", "FY2016_claims", "FY2017_claims", "FY2018_claims")])
 
-mydata <- left_join(mydata, patient_level[, c("SRECIP", "FY2015_claims", "FY2016_claims", "FY2017_claims", "FY2018_claims")], by=c("srecip"="SRECIP"))
+#CDT
+
+patient_level$Preventive <- sapply(patient_level$SRECIP, function(x){ifelse("PREVENTIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Diagnostic <- sapply(patient_level$SRECIP, function(x){ifelse("DIAGNOSTIC" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Restorative <- sapply(patient_level$SRECIP, function(x){ifelse("RESTORATIVE" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Periodontics <- sapply(patient_level$SRECIP, function(x){ifelse("PERIODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Endodontics <- sapply(patient_level$SRECIP, function(x){ifelse("ENDODONTICS" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Oral_and_maxillofacial_surgery <- sapply(patient_level$SRECIP, function(x){ifelse("ORAL & MAXILLOFACIAL SURGERY" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+patient_level$Other <- sapply(patient_level$SRECIP, function(x){ifelse("OTHER" %in% unique_claims$CDT_category[which(unique_claims$SRECIP %in% x)], 1, 0)})
+
+mydata <- left_join(mydata, patient_level[, c("SRECIP", 
+                                              "FY2015_claims", 
+                                              "FY2016_claims", 
+                                              "FY2017_claims", 
+                                              "FY2018_claims",
+                                              "Preventive",
+                                              "Diagnostic",
+                                              "Restorative",
+                                              "Periodontics",
+                                              "Endodontics",
+                                              "Oral_and_maxillofacial_surgery",
+                                              "Other")], by=c("srecip"="SRECIP"))
 
 dim(mydata)
+#103204     26
 
 ```
-
 
 # Classifying patients as HPSA
 
@@ -461,31 +485,31 @@ dental_visit_table <- cbind.data.frame(
              paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")")),
-  FY2015 = c(paste0(round(mean(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes")]),1), " ", "(", round(sd(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes")]),1),"%" ,")"),
+  FY2015 = c(paste0(round(mean(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes")]),1), " ", "(", round(sd(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes")]),1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Age_category=="over 30" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Age_category=="over 30" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Age_category=="over 30" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Age_category=="over 30" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="Black" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="Black" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="Other" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="Other" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="White" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="White" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="Black" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="Black" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="Other" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="Other" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Race=="White" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Race=="White" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes")]),1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes")]),1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
              "",
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="CENTRAL" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="CENTRAL" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="CHARLOTTESVILLE WESTERN" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="CHARLOTTESVILLE WESTERN" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="NORTHERN & WINCHESTER" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="NORTHERN & WINCHESTER" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")")),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="CENTRAL" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="CENTRAL" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="CHARLOTTESVILLE WESTERN" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="CHARLOTTESVILLE WESTERN" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="NORTHERN & WINCHESTER" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="NORTHERN & WINCHESTER" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="ROANOKE/ALLEGHANY" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="SOUTHWEST" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+             paste0(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Region=="TIDEWATER" & mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015_claims=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")")),
   FY2016 = c(paste0(round(mean(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes")]),1), " ", "(", round(sd(mydata_final$Overall_Age_at_earliest_enrollment[which(mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes")]),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Age_category=="under 30" & mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes" & mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
@@ -574,11 +598,142 @@ names(dental_visit_table) <- c("Variable",
 ## Dental services; stratifying by fiscal year (not mutually exclusive)
 
 ```{r}
-patient_level <- unique_claims[!duplicated(unique_claims$SRECIP),]
 
+services_table <- cbind.data.frame(
+  Variable = c("Preventive",
+               "No",
+               "Yes",
+               "Diagnostic",
+               "No",
+               "Yes",
+               "Restorative",
+               "No",
+               "Yes",
+               "Periodontics",
+               "No",
+               "Yes",
+               "Endodontics",
+               "No",
+               "Yes",
+               "Oral & maxillofacial surgery",
+               "No",
+               "Yes",
+               "Other",
+               "No",
+               "Yes"),
+  Total = c("",
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Other==0 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==0  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Other==1 & mydata_final$dental_visit=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==1  & mydata_final$dental_visit=="Yes"),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),])*100,1),"%" ,")")),
+  FY2015 = c("",
+             paste0(nrow(mydata_final[which(mydata_final$Preventive==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Other==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Other==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2015_claims==1),])*100,1),"%" ,")")),
+  FY2016 = c("",
+             paste0(nrow(mydata_final[which(mydata_final$Preventive==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Other==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Other==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2016_claims==1),])*100,1),"%" ,")")),
+  FY2017 = c("",
+             paste0(nrow(mydata_final[which(mydata_final$Preventive==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Other==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Other==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2017_claims==1),])*100,1),"%" ,")")),
+  FY2018 = c("",
+             paste0(nrow(mydata_final[which(mydata_final$Preventive==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Preventive==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Preventive==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Diagnostic==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Diagnostic==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Restorative==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Restorative==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Periodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Periodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Endodontics==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Endodontics==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Oral_and_maxillofacial_surgery==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            "",
+            paste0(nrow(mydata_final[which(mydata_final$Other==0 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==0  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"),
+            paste0(nrow(mydata_final[which(mydata_final$Other==1 & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Other==1  & mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])/nrow(mydata_final[which(mydata_final$dental_visit=="Yes" & mydata_final$FY2018_claims==1),])*100,1),"%" ,")"))
+)
 
-
-mydata_final_cdt 
+names(services_table) <- c("Variable",
+                              paste0("Total number of eligible patients that had dental visit (N=", nrow(mydata_final[which(mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2015 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2015_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2016 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2016_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2017 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2017_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
+                              paste0("Eligible in 2018 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2018_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"))
 ```
 
 # Modelling
@@ -600,11 +755,7 @@ model1 <- glm(dental_visit ~ HPSA_status +
                              Overall_Race + 
                              Overall_Citizen + 
                              Overall_Region + 
-                             months_enrolled +
-                             FY2015 +
-                             FY2016 +
-                             FY2017 +
-                             FY2018,
+                             months_enrolled,
               family=binomial(link='logit'),
               data=mydata_final)
 summary(model1)
