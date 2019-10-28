@@ -1051,6 +1051,12 @@ rootogram(mod1.hurdle.negbin)
 
 lrtest(mod1.hurdle, mod.hurdle.negbin)
 
+expCoef <- exp(coef((mod1.hurdle.negbin)))
+expCoef <- matrix(expCoef, ncol = 1)
+rownames(expCoef) <- names(coef(mod1.hurdle.negbin))
+expCoef
+
+cbind(round(expCoef,3),paste0("(",round(exp(confint(mod1.hurdle.negbin)),3)[,1], ",", " ", round(exp(confint(mod1.hurdle.negbin)),3)[,2], ")"))
 ```
 
 ### Hurdle model 2 (treatment vs non-treatment)
@@ -1070,5 +1076,12 @@ mod2.hurdle.negbin <- hurdle(NumVisits ~ Treatment |
                      zero.dist = "binomial")
 summary(mod2.hurdle.negbin)
 rootogram(mod2.hurdle.negbin)
+
+expCoef <- exp(coef((mod2.hurdle.negbin)))
+expCoef <- matrix(expCoef, ncol = 1)
+rownames(expCoef) <- names(coef(mod2.hurdle.negbin))
+expCoef
+
+cbind(round(expCoef,3),paste0("(",round(exp(confint(mod2.hurdle.negbin)),3)[,1], ",", " ", round(exp(confint(mod2.hurdle.negbin)),3)[,2], ")"))
 ```
 
