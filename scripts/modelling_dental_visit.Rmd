@@ -30,6 +30,9 @@ library(randomForest)
 library(reprtree)
 library(car)
 library(ResourceSelection)
+library(pscl)
+library(countreg)
+library("lmtest")
 ```
 
 # Set working directory
@@ -843,6 +846,7 @@ prob <- predict(model1, type = "response")
 rocp <- roc(mydata_final$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
 ```
 
+<!--
 ## Removing obs with high cooks distances
 
 ```{r}
@@ -973,5 +977,98 @@ plot(model.tree$finalModel, uniform=TRUE,
 text(model.tree$finalModel$finalModel, use.n.=TRUE, all=TRUE, cex=.8)
 
 fancyRpartPlot(model.tree$finalModel)
+```
+
+-->
+
+## Two-Part Models
+
+### Getting number of dental visits as outcome variable
+
+```{r}
+#number of visits
+num_visits <- unique_claims %>%
+  group_by(SRECIP) %>%
+  summarize(n = length(unique(SERVICE_DATE)))
+mean(num_visits$n)
+sd(num_visits$n)
+
+mydata_twopt <- left_join(mydata_final, num_visits, by=c("srecip"="SRECIP"))
+names(mydata_twopt)[29] <- "NumVisits"
+dim(mydata_twopt)
+#103200     29
+
+#filling in missing values with zeros
+mydata_twopt$NumVisits[is.na(mydata_twopt$NumVisits)] <- 0
+summary(mydata_twopt$NumVisits)
+qplot(NumVisits, data = mydata_twopt)
+
+mydata_twopt$Preventive[is.na(mydata_twopt$Preventive)] <- 0
+mydata_twopt$Diagnostic[is.na(mydata_twopt$Diagnostic)] <- 0
+mydata_twopt$Restorative[is.na(mydata_twopt$Restorative)] <- 0
+mydata_twopt$Periodontics[is.na(mydata_twopt$Periodontics)] <- 0
+mydata_twopt$Endodontics[is.na(mydata_twopt$Endodontics)] <- 0
+mydata_twopt$Oral_and_maxillofacial_surgery[is.na(mydata_twopt$Oral_and_maxillofacial_surgery)] <- 0
+mydata_twopt$Other[is.na(mydata_twopt$Other)] <- 0
+
+mydata_twopt$Preventive <- as.factor(ifelse(mydata_twopt$Preventive==1,"Yes", "No"))
+mydata_twopt$Treatment <- as.factor(ifelse(mydata_twopt$Preventive==1 | mydata_twopt$Diagnostic==1, "No", "Yes"))
+```
+
+### Hurdle model 1 (preventative vs non-preventatitive)
+
+```{r}
+table(mydata_twopt$Preventive[which(mydata_twopt$NumVisits>0)])
+
+mod1.hurdle <- hurdle(NumVisits ~ Preventive |
+                             HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled,
+                     data = mydata_twopt,
+                     dist = "poisson",
+                     zero.dist = "binomial")
+summary(mod1.hurdle)
+rootogram(mod1.hurdle)
+
+mean(mydata_twopt$NumVisits[which(mydata_twopt$NumVisits>0)])
+var(mydata_twopt$NumVisits[which(mydata_twopt$NumVisits>0)])
+
+mod1.hurdle.negbin <- hurdle(NumVisits ~ Preventive |
+                             HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled,
+                     data = mydata_twopt,
+                     dist = "negbin",
+                     zero.dist = "binomial")
+summary(mod1.hurdle.negbin)
+rootogram(mod1.hurdle.negbin)
+
+lrtest(mod1.hurdle, mod.hurdle.negbin)
+
+```
+
+### Hurdle model 2 (treatment vs non-treatment)
+
+```{r}
+table(mydata_twopt$Treatment[which(mydata_twopt$NumVisits>0)])
+
+mod2.hurdle.negbin <- hurdle(NumVisits ~ Treatment |
+                             HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled,
+                     data = mydata_twopt,
+                     dist = "negbin",
+                     zero.dist = "binomial")
+summary(mod2.hurdle.negbin)
+rootogram(mod2.hurdle.negbin)
 ```
 
