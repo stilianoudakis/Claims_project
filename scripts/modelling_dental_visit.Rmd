@@ -1036,7 +1036,13 @@ rootogram(mod1.hurdle)
 mean(mydata_twopt$NumVisits[which(mydata_twopt$NumVisits>0)])
 var(mydata_twopt$NumVisits[which(mydata_twopt$NumVisits>0)])
 
-mod1.hurdle.negbin <- hurdle(NumVisits ~ Preventive |
+mod1.hurdle.negbin <- hurdle(NumVisits ~ Preventive +
+                             HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled |
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
@@ -1064,7 +1070,13 @@ cbind(round(expCoef,3),paste0("(",round(exp(confint(mod1.hurdle.negbin)),3)[,1],
 ```{r}
 table(mydata_twopt$Treatment[which(mydata_twopt$NumVisits>0)])
 
-mod2.hurdle.negbin <- hurdle(NumVisits ~ Treatment |
+mod2.hurdle.negbin <- hurdle(NumVisits ~ Treatment +
+                             HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled |
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
