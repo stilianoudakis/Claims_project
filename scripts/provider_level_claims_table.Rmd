@@ -108,6 +108,37 @@ all_dental_providers_no_license[which(all_dental_providers_no_license$PTL_P_LAST
 unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
 ```
 
+# Checking to see if there are differences between billing and servicing provider names from unique claims data
+
+```{r}
+length(which(unique_claims$Servicing_Provider_name!=unique_claims$BillIng_Provider_name)) #3934
+
+unique_claims[which(unique_claims$Servicing_Provider_name!=unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                                                   "SERVICING_PROVIDER_NPI",
+                                                                                                   "SERVICING_PROVIDER_ZIP",
+                                                                                                   "Servicing_Provider_City",
+                                                                                                   "BillIng_Provider_name",
+                                                                                                   "billing_prov_NPI",
+                                                                                                   "BILLING_PROVIDER_ZIP",
+                                                                                                   "BillIng_Provider_City")]
+
+length(which(unique_claims$Servicing_Provider_name!=unique_claims$BillIng_Provider_name & (unique_claims$SERVICING_PROVIDER_ZIP!=unique_claims$BILLING_PROVIDER_ZIP |
+                                                                                             unique_claims$Servicing_Provider_City!=unique_claims$BillIng_Provider_City))) #2220
+
+unique_claims[which(unique_claims$Servicing_Provider_name!=unique_claims$BillIng_Provider_name & (unique_claims$SERVICING_PROVIDER_ZIP!=unique_claims$BILLING_PROVIDER_ZIP |
+                                                                                             unique_claims$Servicing_Provider_City!=unique_claims$BillIng_Provider_City)), c("Servicing_Provider_name",
+                                                                                                   "SERVICING_PROVIDER_NPI",
+                                                                                                   "SERVICING_PROVIDER_ZIP",
+                                                                                                   "Servicing_Provider_City",
+                                                                                                   "BillIng_Provider_name",
+                                                                                                   "billing_prov_NPI",
+                                                                                                   "BILLING_PROVIDER_ZIP",
+                                                                                                   "BillIng_Provider_City")]
+
+length(which(unique_claims$Servicing_Provider_name!=unique_claims$BillIng_Provider_name & unique_claims$SERVICING_PROVIDER_ZIP!=unique_claims$BILLING_PROVIDER_ZIP)) #0
+```
+
+
 # Separating billing provider name into first and last
 
 ```{r}
@@ -574,5 +605,587 @@ tapply(num_visits_df$cat, num_visits_df$fy, function(x){round(prop.table(table(x
 #   legend.position="bottom")
 #
 #tapply(num_visits_df$n, num_visits_df$fy, summary)
+```
+
+# Creating a file with unique provider names and characteristics
+
+## Cleaning up service provider names to match with billing provider names
+
+```{r}
+unique_claims3 <- extract(unique_claims, Servicing_Provider_name, c("ServicingProviderLastName", "ServicingProviderFirstName"), "([^ ]+) (.*)")
+unique_claims3$ServicingProviderFirstName <- toupper(unique_claims3$ServicingProviderFirstName)
+unique_claims3$ServicingProviderLastName <- toupper(unique_claims3$ServicingProviderLastName)
+
+provider_names <- unique_claims3 %>%
+  distinct(ServicingProviderLastName, ServicingProviderFirstName) 
+dim(provider_names) #1231    2
+
+#different number of unique provider names when using service provider compared to billing provider (1231 vs 1209)
+#investigate
+
+provider_names <- provider_names[order(provider_names$ServicingProviderLastName, provider_names$ServicingProviderFirstName, decreasing = FALSE),]
+
+unique_providers <- unique_providers[order(unique_providers$ProviderLastName, unique_providers$ProviderFirstName, decreasing = FALSE),]
+#remove space in front of billing provider first names
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" GIOVANNI")] <- "GIOVANNI"
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" ANGELA")] <- "ANGELA"
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" SLADJANA")] <- "SLADJANA"
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" ROBERT")] <- "ROBERT"
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" DAVID")] <- "DAVID"
+unique_providers$ProviderFirstName[which(unique_providers$ProviderFirstName==" LYNN")] <- "LYNN"
+
+##last names in service providers but not in billing providers
+setdiff(provider_names$ServicingProviderLastName, unique_providers$ProviderLastName)
+#"ARITA"    
+#"CUELLAR" 
+#"CUELLAR-CORDOVA" 
+#"FRANKLIN"    
+#"GASPARI"   
+#"HO"   
+#"MAHMOUD"      
+#"OLTRA"      
+#"ONEILL"     
+#"PADMALATHA"     
+#"SEAL"   
+#"TOFIGHBAKHSH"  
+
+##investigating name by name
+###"Arita"
+unique_claims[grepl("Arita", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change arita to kim
+provider_names$ServicingProviderLastName[which(provider_names$ServicingProviderLastName=="ARITA")] <- "KIM"
+
+###"CUELLAR"/"CUELLAR-CORDOVA" 
+unique_claims[grepl("Cuellar", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change cuellar/cuellar-cordova to anderson
+provider_names$ServicingProviderLastName[grepl("CUELLAR", provider_names$ServicingProviderLastName)] <- "ANDERSON"
+
+###"FRANKLIN"
+unique_claims[grepl("Franklin", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change franklin to byerson
+provider_names$ServicingProviderLastName[grepl("FRANKLIN", provider_names$ServicingProviderLastName)] <- "BYERSON"
+
+###"GASPARI" 
+unique_claims[grepl("Gaspari", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change gaspari to speicher
+provider_names$ServicingProviderLastName[grepl("GASPARI", provider_names$ServicingProviderLastName)] <- "SPEICHER"
+
+###"HO"
+unique_claims[grepl("Ho ", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change Ho to Lam
+provider_names$ServicingProviderLastName[grepl("HO", provider_names$ServicingProviderLastName) & grepl("SYLVIE",provider_names$ServicingProviderFirstName)] <- "LAM"
+
+###"MAHMOUD"
+unique_claims[grepl("Mahmoud", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change Mahmoud to Shihabi
+provider_names$ServicingProviderLastName[grepl("MAHMOUD", provider_names$ServicingProviderLastName)] <- "SHIHABI"
+
+###"OLTRA"
+unique_claims[grepl("Oltra", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change Oltra to Esplugues
+provider_names$ServicingProviderLastName[grepl("OLTRA", provider_names$ServicingProviderLastName)] <- "ESPLUGUES"
+
+###"ONEILL"
+unique_claims[grepl("Oneill", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change ONEILL to O'NEILL
+provider_names$ServicingProviderLastName[grepl("ONEILL", provider_names$ServicingProviderLastName)] <- "O'NEILL"
+
+###"PADMALATHA" 
+unique_claims[grepl("Padmalatha", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change Padmalatha to Navubothu in last name and vice versa 
+provider_names$ServicingProviderLastName[grepl("PADMALATHA", provider_names$ServicingProviderLastName)] <- "NAVUBOTHU"
+provider_names$ServicingProviderFirstName[grepl("NAVUBOTHU", provider_names$ServicingProviderLastName)] <- "PADMALATHA"
+
+###"SEAL"
+unique_claims[grepl("Seal", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change seal to travis
+provider_names$ServicingProviderLastName[grepl("SEAL", provider_names$ServicingProviderLastName)] <- "TRAVIS"
+
+###"TOFIGHBAKHSH"
+unique_claims[grepl("Tofigh", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change TOFIGHBAKHSH to Tofigh
+provider_names$ServicingProviderLastName[grepl("TOFIGHBAKHSH", provider_names$ServicingProviderLastName)] <- "TOFIGH"
+
+
+##first names in service providers but not in billing providers
+setdiff(provider_names$ServicingProviderFirstName, unique_providers$ProviderFirstName)
+#"SEAN ABBA"
+#"JIN SOO"
+#"JAE K"   
+#"LYNN"    
+#"ACUNA GIOVANNI"
+#"CORDOVA ELIANA" 
+#"ABHISHEKI"   
+#"B ROBERT"  
+#"GHOLAMALI" 
+#"QUYNH TRANG" 
+#"TUONG VAN"
+#"ANGUSTUS"  
+#"DUYMAN"   
+#"SLADJANA"  
+#"AL"        
+#"SEYED"     
+#"RODIGUEZ JORGE" 
+#"DAVOUD"
+
+##investigating name by name
+###"SEAN ABBA"
+unique_claims[grepl("Sean Abba", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change sean abba to just abba
+provider_names$ServicingProviderFirstName[grepl("SEAN ABBA", provider_names$ServicingProviderFirstName)] <- "ABBA"
+
+###"JIN SOO"
+unique_claims[grepl("Jin Soo", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change jin soo to jason
+provider_names$ServicingProviderFirstName[grepl("JIN SOO", provider_names$ServicingProviderFirstName)] <- "JASON"
+
+###"JAE K"
+unique_claims[grepl("Jae K", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change jae k to jae
+provider_names$ServicingProviderFirstName[grepl("JAE K", provider_names$ServicingProviderFirstName)] <- "JAE"
+
+###"LYNN"
+unique_claims[grepl("Lynn", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change booth lynn to booth catherine
+provider_names$ServicingProviderFirstName[grepl("LYNN", provider_names$ServicingProviderFirstName) & grepl("BOOTH", provider_names$ServicingProviderLastName)] <- "CATHERINE"
+
+
+###"ACUNA GIOVANNI"
+unique_claims[grepl("Acuna", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change acuna giovanni to just giovanni
+provider_names$ServicingProviderFirstName[grepl("ACUNA GIOVANNI", provider_names$ServicingProviderFirstName)] <- "GIOVANNI"
+
+###"CORDOVA ELIANA"
+unique_claims[grepl("Eliana", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change cordova eliana 
+provider_names$ServicingProviderFirstName[grepl("CORDOVA ELIANA", provider_names$ServicingProviderFirstName)] <- "ELIANA"
+
+###"ABHISHEKI"
+unique_claims[grepl("Abhisheki", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change Abhisheki to Abhishek
+provider_names$ServicingProviderFirstName[grepl("ABHISHEKI", provider_names$ServicingProviderFirstName)] <- "ABHISHEK"
+
+###"B ROBERT"
+unique_claims[grepl("B Robert", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change b robert to babak
+provider_names$ServicingProviderFirstName[grepl("B ROBERT", provider_names$ServicingProviderFirstName)] <- "BABAK"
+
+###"GHOLAMALI"
+unique_claims[grepl("Gholamali", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change gholamali to gholam
+provider_names$ServicingProviderFirstName[grepl("GHOLAMALI", provider_names$ServicingProviderFirstName)] <- "GHOLAM"
+
+###"QUYNH TRANG"
+unique_claims[grepl("Quynh Trang", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change quynh trang to just quynh
+provider_names$ServicingProviderFirstName[grepl("QUYNH TRANG", provider_names$ServicingProviderFirstName)] <- "QUYNH"
+
+###"TUONG VAN"
+unique_claims[grepl("Tuong", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change tuong van to tuong-van
+provider_names$ServicingProviderFirstName[grepl("TUONG VAN", provider_names$ServicingProviderFirstName)] <- "TUONG-VAN"
+
+###"ANGUSTUS"
+unique_claims[grepl("Angustus", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change angustus to augustus
+provider_names$ServicingProviderFirstName[grepl("ANGUSTUS", provider_names$ServicingProviderFirstName)] <- "AUGUSTUS"
+
+###"DUYMAN"
+unique_claims[grepl("Duyman", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change duyman to duy-man
+provider_names$ServicingProviderFirstName[grepl("DUYMAN", provider_names$ServicingProviderFirstName)] <- "DUY-MAN"
+
+###AL
+unique_claims[grepl(" Al", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change al to aloysius
+provider_names$ServicingProviderFirstName[grepl("AL", provider_names$ServicingProviderFirstName) & grepl("STENGER", provider_names$ServicingProviderLastName)] <- "ALOYSIUS"
+
+###"SEYED"
+unique_claims[grepl("Seyed", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change seyed to saeed
+provider_names$ServicingProviderFirstName[grepl("SEYED", provider_names$ServicingProviderFirstName)] <- "SAEED"
+
+###RODIGUEZ JORGE
+unique_claims[grepl("Rodiguez", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change rodiguez to rodriguez
+provider_names$ServicingProviderFirstName[grepl("RODIGUEZ JORGE", provider_names$ServicingProviderFirstName)] <- "RODRIGUEZ JORGE"
+
+###"DAVOUD"
+unique_claims[grepl("Davoud", unique_claims$Servicing_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change davoud to david
+provider_names$ServicingProviderFirstName[grepl("DAVOUD", provider_names$ServicingProviderFirstName)] <- "DAVID"
+
+dim(provider_names)
+provider_names2 <- provider_names %>%
+  distinct(ServicingProviderLastName, ServicingProviderFirstName) 
+dim(provider_names2) #1215 2
+
+#########################################################################################################################
+##last names in billing providers but not in service providers
+setdiff(unique_providers$ProviderLastName, provider_names$ServicingProviderLastName)
+#"IMAAD"
+
+###"IMAAD"
+unique_claims[grepl("Imaad", unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change ahmad saira to imaad saira
+provider_names$ServicingProviderLastName[grepl("AHMAD", provider_names$ServicingProviderLastName) & grepl("SAIRA", provider_names$ServicingProviderFirstName)] <- "IMAAD"
+
+
+##first names in billing providers but not in service providers
+setdiff(unique_providers$ProviderFirstName, provider_names$ServicingProviderFirstName)
+#"MARKO"  
+#"JAE KWON" 
+#"SIU"  
+#"NIKOLAOS"
+
+###"MARKO"
+unique_claims[grepl("Marko", unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change mark to marko
+provider_names$ServicingProviderFirstName[grepl("BELTRAMI", provider_names$ServicingProviderLastName) & grepl("MARK", provider_names$ServicingProviderFirstName)] <- "MARKO"
+
+###"JAE KWON"
+unique_claims[grepl("Jae K", unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change jae k to jae kwon
+provider_names$ServicingProviderFirstName[grepl("JAE", provider_names$ServicingProviderFirstName) & grepl("BOK", provider_names$ServicingProviderLastName)] <- "JAE KWON"
+
+###"SIU"
+unique_claims[grepl("Siu", unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change john to siu
+provider_names$ServicingProviderFirstName[grepl("JOHN", provider_names$ServicingProviderFirstName) & grepl("HSU", provider_names$ServicingProviderLastName)] <- "SIU"
+
+###"NIKOLAOS"
+unique_claims[grepl("Nikolaos", unique_claims$BillIng_Provider_name), c("Servicing_Provider_name",
+                                                                       "SERVICING_PROVIDER_NPI",
+                                                                       "SERVICING_PROVIDER_ZIP",
+                                                                       "Servicing_Provider_City",
+                                                                       "BillIng_Provider_name",
+                                                                       "billing_prov_NPI",
+                                                                       "BILLING_PROVIDER_ZIP",
+                                                                       "BillIng_Provider_City")]
+###change nicholas to nikolaos
+provider_names$ServicingProviderFirstName[grepl("NICHOLAS", provider_names$ServicingProviderFirstName) & grepl("PAPA", provider_names$ServicingProviderLastName)] <- "NIKOLAOS"
+
+
+dim(provider_names)
+provider_names2 <- provider_names %>%
+  distinct(ServicingProviderLastName, ServicingProviderFirstName) 
+dim(provider_names2) #1214
+
+provider_names2 <- provider_names2[order(provider_names2$ServicingProviderLastName, provider_names2$ServicingProviderFirstName, decreasing = FALSE),]
+
+#number is still of investigating more
+
+##change Chung John to Chung Jong
+provider_names2$ServicingProviderFirstName[which(provider_names2$ServicingProviderLastName=="CHUNG" & provider_names2$ServicingProviderFirstName=="JOHN")] <- "JONG"
+
+##change Howard Jennifer to Szakaly Jennifer
+provider_names2$ServicingProviderLastName[which(provider_names2$ServicingProviderLastName=="HOWARD" & provider_names2$ServicingProviderFirstName=="JENNIFER")] <- "SZAKALY"
+
+##change Lopex Eva to Eva Copeland
+provider_names2$ServicingProviderLastName[which(provider_names2$ServicingProviderLastName=="LOPEZ" & provider_names2$ServicingProviderFirstName=="EVA")] <- "COPELAND"
+
+##change Phillips Sarah to Yarnell Sarah
+provider_names2$ServicingProviderLastName[which(provider_names2$ServicingProviderLastName=="PHILLIPS" & provider_names2$ServicingProviderFirstName=="SARAH")] <- "YARNELL"
+
+##change Yoo Young to Yoo Young-A
+provider_names2$ServicingProviderFirstName[which(provider_names2$ServicingProviderLastName=="YOO" & provider_names2$ServicingProviderFirstName=="YOUNG")] <- "YOUNG-A"
+
+dim(provider_names2)
+provider_names3 <- provider_names2 %>%
+  distinct(ServicingProviderLastName, ServicingProviderFirstName) 
+dim(provider_names3) #1214
+
+provider_names3 <- provider_names3[order(provider_names3$ServicingProviderLastName, provider_names3$ServicingProviderFirstName, decreasing = FALSE),]
+
+
+
+```
+
+## creating the file
+
+```{r}
+#using billing provider names
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" GIOVANNI")] <- "GIOVANNI"
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" ANGELA")] <- "ANGELA"
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" SLADJANA")] <- "SLADJANA"
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" ROBERT")] <- "ROBERT"
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" DAVID")] <- "DAVID"
+unique_claims2$ProviderFirstName[which(unique_claims2$ProviderFirstName==" LYNN")] <- "LYNN"
+
+
+city <- character()
+cityp <- character()
+zipcode <- character()
+zipcodep <- character()
+totalpats <- numeric()
+avecost <- numeric()
+sdcost <- numeric()
+for(i in 1:nrow(unique_providers)){
+  
+  citydf <- data.frame(table(unique_claims2$BillIng_Provider_City[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                          unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])]))
+  citydf <- citydf[order(citydf$Freq, decreasing = TRUE),]
+  city[i] <- as.character(citydf[1,1])
+  
+  citydfp <- data.frame(prop.table(table(unique_claims2$BillIng_Provider_City[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                                      unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])])))
+  citydfp <- citydfp[order(citydfp$Freq, decreasing = TRUE),]
+  cityp[i] <- as.character(paste0(round(citydfp[1,2]*100,1),"%"))
+  
+  zipdf <- data.frame(table(unique_claims2$BILLING_PROVIDER_ZIP[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                        unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])]))
+  zipdf <- zipdf[order(zipdf$Freq, decreasing = TRUE),]
+  zipcode[i] <- as.character(zipdf[1,1])
+  
+  zipdfp <- data.frame(prop.table(table(unique_claims2$BILLING_PROVIDER_ZIP[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                                    unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])])))
+  zipdfp <- zipdfp[order(zipdfp$Freq, decreasing = TRUE),]
+  zipcodep[i] <- as.character(paste0(round(zipdfp[1,2]*100,1),"%"))
+  
+  totalpats[i] <- as.numeric(unique_claims2[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                    unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i]),] %>%
+               summarize(n = length(unique(SRECIP))))
+  
+  avecost[i] <- round(as.numeric(unique_claims2[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] & 
+                                          unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i]),] %>% 
+                     summarize(n = mean(as.numeric(na.omit(AMOUNT_PAID))))),2)
+  
+  sdcost[i] <- round(as.numeric(unique_claims2[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] & 
+                                          unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i]),] %>% 
+                     summarize(n = sd(as.numeric(na.omit(AMOUNT_PAID))))),2)
+}
+
+provider_tab <- cbind.data.frame(FirstName = unique_providers$ProviderFirstName,
+                                 LastName = unique_providers$ProviderLastName,
+                                 MostFreqCity = paste0(city, " ", "(", cityp, ")"),
+                                 MostFreqZip = paste0(zipcode, " ", "(", zipcodep, ")"),
+                                 TotalPats = totalpats,
+                                 AverageCost = paste0(avecost, " ", "(", sdcost, ")"))
+
+#write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
 ```
 
