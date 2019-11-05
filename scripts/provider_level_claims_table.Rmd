@@ -1144,6 +1144,9 @@ zipcodep <- character()
 totalpats <- numeric()
 avecost <- numeric()
 sdcost <- numeric()
+totalservice <- numeric()
+service <- character()
+servicep <- character()
 for(i in 1:nrow(unique_providers)){
   
   citydf <- data.frame(table(unique_claims2$BillIng_Provider_City[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
@@ -1177,6 +1180,21 @@ for(i in 1:nrow(unique_providers)){
   sdcost[i] <- round(as.numeric(unique_claims2[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] & 
                                           unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i]),] %>% 
                      summarize(n = sd(as.numeric(na.omit(AMOUNT_PAID))))),2)
+  
+  totalservice[i] <- as.numeric(unique_claims2[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                    unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i]),] %>%
+                               count())
+  
+  servicedf <- data.frame(table(unique_claims2$CDT_category[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                        unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])]))
+  servicedf <- servicedf[order(servicedf$Freq, decreasing = TRUE),]
+  service[i] <- as.character(servicedf[1,1])
+  
+  servicedfp <- data.frame(prop.table(table(unique_claims2$CDT_category[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                                    unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])])))
+  servicedfp <- servicedfp[order(servicedfp$Freq, decreasing = TRUE),]
+  servicep[i] <- as.character(paste0(round(servicedfp[1,2]*100,1),"%"))
+  
 }
 
 provider_tab <- cbind.data.frame(FirstName = unique_providers$ProviderFirstName,
@@ -1184,8 +1202,10 @@ provider_tab <- cbind.data.frame(FirstName = unique_providers$ProviderFirstName,
                                  MostFreqCity = paste0(city, " ", "(", cityp, ")"),
                                  MostFreqZip = paste0(zipcode, " ", "(", zipcodep, ")"),
                                  TotalPats = totalpats,
-                                 AverageCost = paste0(avecost, " ", "(", sdcost, ")"))
+                                 AverageCost = paste0(avecost, " ", "(", sdcost, ")"),
+                                 TotalService = totalservice,
+                                 MostFreqService = paste0(service, " ", "(", servicep, ")"))
 
-#write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
+write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
 ```
 
