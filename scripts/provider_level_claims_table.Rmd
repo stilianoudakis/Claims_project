@@ -1114,10 +1114,10 @@ provider_names2$ServicingProviderLastName[which(provider_names2$ServicingProvide
 ##change Yoo Young to Yoo Young-A
 provider_names2$ServicingProviderFirstName[which(provider_names2$ServicingProviderLastName=="YOO" & provider_names2$ServicingProviderFirstName=="YOUNG")] <- "YOUNG-A"
 
-dim(provider_names2)
+dim(provider_names2) #1214
 provider_names3 <- provider_names2 %>%
   distinct(ServicingProviderLastName, ServicingProviderFirstName) 
-dim(provider_names3) #1214
+dim(provider_names3) #1209
 
 provider_names3 <- provider_names3[order(provider_names3$ServicingProviderLastName, provider_names3$ServicingProviderFirstName, decreasing = FALSE),]
 
@@ -1125,7 +1125,7 @@ provider_names3 <- provider_names3[order(provider_names3$ServicingProviderLastNa
 
 ```
 
-## creating the file
+## Creating the file
 
 ```{r}
 #using billing provider names
@@ -1147,6 +1147,8 @@ sdcost <- numeric()
 totalservice <- numeric()
 service <- character()
 servicep <- character()
+npi <- character()
+npip <- character()
 for(i in 1:nrow(unique_providers)){
   
   citydf <- data.frame(table(unique_claims2$BillIng_Provider_City[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
@@ -1195,6 +1197,16 @@ for(i in 1:nrow(unique_providers)){
   servicedfp <- servicedfp[order(servicedfp$Freq, decreasing = TRUE),]
   servicep[i] <- as.character(paste0(round(servicedfp[1,2]*100,1),"%"))
   
+  npidf <- data.frame(table(unique_claims2$SERVICING_PROVIDER_NPI[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                        unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])]))
+  npidf <- npidf[order(npidf$Freq, decreasing = TRUE),]
+  npi[i] <- as.character(npidf[1,1])
+  
+  npidfp <- data.frame(prop.table(table(unique_claims2$SERVICING_PROVIDER_NPI[which(unique_claims2$ProviderLastName==unique_providers$ProviderLastName[i] &
+                                                                                    unique_claims2$ProviderFirstName==unique_providers$ProviderFirstName[i])])))
+  npidfp <- npidfp[order(npidfp$Freq, decreasing = TRUE),]
+  npip[i] <- as.character(paste0(round(npidfp[1,2]*100,1),"%"))
+  
 }
 
 provider_tab <- cbind.data.frame(FirstName = unique_providers$ProviderFirstName,
@@ -1204,7 +1216,54 @@ provider_tab <- cbind.data.frame(FirstName = unique_providers$ProviderFirstName,
                                  TotalPats = totalpats,
                                  AverageCost = paste0(avecost, " ", "(", sdcost, ")"),
                                  TotalService = totalservice,
-                                 MostFreqService = paste0(service, " ", "(", servicep, ")"))
+                                 MostFreqService = paste0(service, " ", "(", servicep, ")"),
+                                 MostFreqNPI = paste0(npi, " ", "(", npip, ")"))
+
+```
+
+# Joining with all_dental_providers file to get licence info
+
+```{r}
+adp <- all_dental_providers
+dim(adp) #24208
+
+# returns string w/o leading whitespace
+trim.leading <- function (x)  sub("^\\s+", "", x)
+adp$PTL_P_LAST <- trim.leading(adp$PTL_P_LAST)
+adp$PTL_P_FIRST <- trim.leading(adp$PTL_P_FIRST)
+
+adp <- adp[order(adp$PTL_P_LAST, decreasing = FALSE),]
+
+#getting licence
+adp_licence <- adp %>%
+  distinct(PTL_P_LAST, PTL_P_FIRST, PTL_LICENSE) 
+dim(adp_licence) #7659 
+adp_licence <- adp_licence[-which(is.na(adp_licence$PTL_LICENSE)),]
+dim(adp_licence) #1112
+
+
+licence_func <- function(first,last){
+  adp_licence[grepl(as.character(last), adp_licence$PTL_P_LAST) & grepl(as.character(first), adp_licence$PTL_P_FIRST),]$PTL_LICENSE
+}
+licences <- mapply(licence_func, provider_tab$FirstName, provider_tab$LastName)
+length(licences)
+licences <- lapply(licences, unique)
+
+number_of_unique_licences <- do.call("c",lapply(licences, length))
+table(number_of_unique_licences)
+#  0   1   2 
+#815 387   7 
+provider_tab[which(number_of_unique_licences>1),]
+
+licences_rbind <- plyr::ldply(licences, rbind)
+colnames(licences_rbind) <- paste0("License_", colnames(licences_rbind))
+
+provider_tab <- cbind.data.frame(provider_tab,licences_rbind)
+
+#investigating providers whose npi was not filled in
+provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1:2]
+nrow(provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1:2]) #815
+
 
 write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
 ```
