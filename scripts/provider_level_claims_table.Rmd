@@ -1289,20 +1289,6 @@ provider_tab_new <- provider_tab_new[order(provider_tab_new$LastName, decreasing
 provider_tab_new$FirstName <- as.character(provider_tab_new$FirstName)
 provider_tab_new$LastName <- as.character(provider_tab_new$LastName)
 
-#getting PTL_P_TITLE, PTL_CLS_TP1, PTL_SPC_CDE1, PTL_CITY_CNTY 
-n=nrow(provider_tab_new)
-##PTL_CITY_CNTY
-adp_PTL_CITY_CNTY <- adp %>%
-    distinct(PTL_P_FIRST, PTL_P_LAST, PTL_CITY_CNTY) 
-provider_tab_new$PTL_CITY_CNTY <- NA
-city_list <- list()
-for(i in 1:n){
-  x <- stringdist(provider_tab_new$LastName[i], adp_PTL_CITY_CNTY$PTL_P_LAST)
-  y <- stringdist(provider_tab_new$FirstName[i], adp_PTL_CITY_CNTY$PTL_P_FIRST)
-  if(which.min(x)==which.min(y)){
-    city_list[i] <- unique(adp_PTL_CITY_CNTY$PTL_CITY_CNTY[x==min(x)])
-  }
-}
 
 
 ```
@@ -1340,7 +1326,23 @@ provider_tab_new$PTL_CITY_CNTY <- cp
 #filling in missing
 length(which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)")) #170
 
+#fuzzy matching provider names that have missing licenses one by one
+provider_tab_new_miss <- provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),]
+fn <- as.character(provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),1])
+ln <- as.character(provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),2])
+for(i in 1:n){
+  #provider last name with missing license
+  x <- stringdist(ln[i], adp_PTL_CITY_CNTY$PTL_P_LAST)
+  y <- stringdist(fn[i], adp_PTL_CITY_CNTY$PTL_P_FIRST)
+  if(which.min(x)==which.min(y)){
+    provider_tab_new_miss$PTL_CITY_CNTY[i] <- paste0(adp_PTL_CITY_CNTY$PTL_CITY_CNTY[which.min(x)], " ", "(100%)")
+  }
+}
+table(provider_tab_new_miss$PTL_CITY_CNTY)
 
+
+provider_tab_new2 <- rbind.data.frame(provider_tab_new_miss, provider_tab_new[-which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),])
+provider_tab_new2 <- provider_tab_new2[order(provider_tab_new2$LastName, decreasing = FALSE),]
 ```
 
 
