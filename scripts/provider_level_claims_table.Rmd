@@ -1259,12 +1259,89 @@ licences_rbind <- plyr::ldply(licences, rbind)
 colnames(licences_rbind) <- paste0("License_", colnames(licences_rbind))
 
 provider_tab <- cbind.data.frame(provider_tab,licences_rbind)
+provider_tab$License_1 <- as.character(provider_tab$License_1)
+provider_tab$License_2 <- as.character(provider_tab$License_2)
 
 #investigating providers whose npi was not filled in
+table(rowSums(!is.na(provider_tab[,10:11])))
 provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1:2]
 nrow(provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1:2]) #815
+n=nrow(provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1:2])
+
+#fuzzy matching provider names that have missing licenses one by one
+provider_tab_miss <- provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),]
+fn <- as.character(provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),1])
+ln <- as.character(provider_tab[which(rowSums(!is.na(provider_tab[,10:11]))==0),2])
+for(i in 1:n){
+  #provider last name with missing license
+  x <- stringdist(ln[i], adp_licence$PTL_P_LAST)
+  y <- stringdist(fn[i], adp_licence$PTL_P_FIRST)
+  #adp_licence[which.min(x),]
+  #adp_licence[which.min(y),]
+  if(which.min(x)==which.min(y)){
+    provider_tab_miss$License_1[i] <- adp_licence$PTL_LICENSE[which.min(x)]
+  }
+}
+table(rowSums(!is.na(provider_tab_miss[,10:11])))
+
+provider_tab_new <- rbind.data.frame(provider_tab_miss, provider_tab[-which(rowSums(!is.na(provider_tab[,10:11]))==0),])
+provider_tab_new <- provider_tab_new[order(provider_tab_new$LastName, decreasing = FALSE),]
+provider_tab_new$FirstName <- as.character(provider_tab_new$FirstName)
+provider_tab_new$LastName <- as.character(provider_tab_new$LastName)
+
+#getting PTL_P_TITLE, PTL_CLS_TP1, PTL_SPC_CDE1, PTL_CITY_CNTY 
+n=nrow(provider_tab_new)
+##PTL_CITY_CNTY
+adp_PTL_CITY_CNTY <- adp %>%
+    distinct(PTL_P_FIRST, PTL_P_LAST, PTL_CITY_CNTY) 
+provider_tab_new$PTL_CITY_CNTY <- NA
+city_list <- list()
+for(i in 1:n){
+  x <- stringdist(provider_tab_new$LastName[i], adp_PTL_CITY_CNTY$PTL_P_LAST)
+  y <- stringdist(provider_tab_new$FirstName[i], adp_PTL_CITY_CNTY$PTL_P_FIRST)
+  if(which.min(x)==which.min(y)){
+    city_list[i] <- unique(adp_PTL_CITY_CNTY$PTL_CITY_CNTY[x==min(x)])
+  }
+}
+
+
+```
+
+
+# Getting PTL_CITY_CNTY
+
+```{r}
+adp_PTL_CITY_CNTY <- adp %>%
+    distinct(PTL_P_FIRST, PTL_P_LAST) 
+
+
+city_func <- function(first,last){
+  adp_PTL_CITY_CNTY[grepl(as.character(last), adp_PTL_CITY_CNTY$PTL_P_LAST) & grepl(as.character(first), adp_PTL_CITY_CNTY$PTL_P_FIRST),]$PTL_CITY_CNTY
+}
+citys <- mapply(city_func, provider_tab_new$FirstName, provider_tab_new$LastName)
+length(citys)
+
+c <- unlist(lapply(citys, function(x){
+  d <- data.frame(table(x))
+  d <- d[order(d$Freq, decreasing = TRUE),]
+  if(class(d)=="data.frame"){d <- d[1,1]; d <- as.character(d)}else{d <- NA}}))
+
+p <- unlist(lapply(citys, function(x){
+    d <- data.frame(prop.table(table(x)))
+    if(nrow(d)>0){
+      d <- d[order(d$Freq, decreasing = TRUE),]
+      d <- round(d[1,2]*100,1)
+    }else{d <- NA}}))
+
+cp <- paste0(c, " ", "(", p, "%", ")")
+
+provider_tab_new$PTL_CITY_CNTY <- cp
+
+#filling in missing
+length(which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)")) #170
+
+
+```
 
 
 write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
-```
-
