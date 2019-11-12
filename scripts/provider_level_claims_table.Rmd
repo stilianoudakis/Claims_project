@@ -1293,13 +1293,11 @@ provider_tab_new$LastName <- as.character(provider_tab_new$LastName)
 
 ```
 
-
-# Getting PTL_CITY_CNTY
+# PTL_CITY_CNTY
 
 ```{r}
 adp_PTL_CITY_CNTY <- adp %>%
     distinct(PTL_P_FIRST, PTL_P_LAST) 
-
 
 city_func <- function(first,last){
   adp_PTL_CITY_CNTY[grepl(as.character(last), adp_PTL_CITY_CNTY$PTL_P_LAST) & grepl(as.character(first), adp_PTL_CITY_CNTY$PTL_P_FIRST),]$PTL_CITY_CNTY
@@ -1325,13 +1323,14 @@ provider_tab_new$PTL_CITY_CNTY <- cp
 
 #filling in missing
 length(which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)")) #170
+n=length(which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"))
 
 #fuzzy matching provider names that have missing licenses one by one
 provider_tab_new_miss <- provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),]
 fn <- as.character(provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),1])
 ln <- as.character(provider_tab_new[which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),2])
 for(i in 1:n){
-  #provider last name with missing license
+  #provider last name with missing cnty
   x <- stringdist(ln[i], adp_PTL_CITY_CNTY$PTL_P_LAST)
   y <- stringdist(fn[i], adp_PTL_CITY_CNTY$PTL_P_FIRST)
   if(which.min(x)==which.min(y)){
@@ -1340,9 +1339,120 @@ for(i in 1:n){
 }
 table(provider_tab_new_miss$PTL_CITY_CNTY)
 
-
 provider_tab_new2 <- rbind.data.frame(provider_tab_new_miss, provider_tab_new[-which(provider_tab_new$PTL_CITY_CNTY=="NA (NA%)"),])
 provider_tab_new2 <- provider_tab_new2[order(provider_tab_new2$LastName, decreasing = FALSE),]
+```
+
+# PTL_SPC_CDE1
+
+```{r}
+adp_PTL_SPC_CDE1 <- adp %>%
+    distinct(PTL_P_FIRST, PTL_P_LAST, PTL_SPC_CDE1) 
+adp_PTL_SPC_CDE1 <- adp_PTL_SPC_CDE1[order(adp_PTL_SPC_CDE1$PTL_P_LAST, adp_PTL_SPC_CDE1$PTL_SPC_CDE1, decreasing = FALSE),]
+
+spc_func <- function(first,last){
+  unique(na.omit(adp_PTL_SPC_CDE1[grepl(as.character(last), adp_PTL_SPC_CDE1$PTL_P_LAST) & grepl(as.character(first), adp_PTL_SPC_CDE1$PTL_P_FIRST),]$PTL_SPC_CDE1))
+}
+spcs <- mapply(spc_func, provider_tab_new2$FirstName, provider_tab_new2$LastName)
+length(spcs)
+table(unlist(lapply(spcs, length)))
+
+c <- unlist(lapply(spcs, function(x){
+  d <- data.frame(table(x))
+  d <- d[order(d$Freq, decreasing = TRUE),]
+  if(class(d)=="data.frame"){d <- d[1,1]; d <- as.character(d)}else{d <- NA}}))
+
+p <- unlist(lapply(spcs, function(x){
+    d <- data.frame(prop.table(table(x)))
+    if(nrow(d)>0){
+      d <- d[order(d$Freq, decreasing = TRUE),]
+      d <- round(d[1,2]*100,1)
+    }else{d <- NA}}))
+
+cp <- paste0(c, " ", "(", p, "%", ")")
+
+provider_tab_new2$PTL_SPC_CDE1 <- cp
+
+#filling in missing
+length(which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)")) #176
+n=length(which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)"))
+
+#fuzzy matching provider names that have missing licenses one by one
+provider_tab_new2_miss <- provider_tab_new2[which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)"),]
+fn <- as.character(provider_tab_new2[which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)"),1])
+ln <- as.character(provider_tab_new2[which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)"),2])
+for(i in 1:n){
+  #provider last name with missing spc
+  x <- stringdist(ln[i], adp_PTL_SPC_CDE1$PTL_P_LAST)
+  y <- stringdist(fn[i], adp_PTL_SPC_CDE1$PTL_P_FIRST)
+  if(which.min(x)==which.min(y)){
+    if(!is.na(adp_PTL_SPC_CDE1$PTL_SPC_CDE1[which.min(x)])){
+      provider_tab_new2_miss$PTL_SPC_CDE1[i] <- paste0(adp_PTL_SPC_CDE1$PTL_SPC_CDE1[which.min(x)], " ", "(100%)")
+    }else{
+      provider_tab_new2_miss$PTL_SPC_CDE1[i] <- "NA (NA%)"
+    }
+  }
+}
+table(provider_tab_new2_miss$PTL_SPC_CDE1)
+
+provider_tab_new3 <- rbind.data.frame(provider_tab_new2_miss, provider_tab_new2[-which(provider_tab_new2$PTL_SPC_CDE1=="NA (NA%)"),])
+provider_tab_new3 <- provider_tab_new3[order(provider_tab_new3$LastName, decreasing = FALSE),]
+```
+
+# PTL_CLS_TP1
+
+```{r}
+adp_PTL_CLS_TP1 <- adp %>%
+    distinct(PTL_P_FIRST, PTL_P_LAST, PTL_CLS_TP1) 
+adp_PTL_CLS_TP1 <- adp_PTL_CLS_TP1[order(adp_PTL_CLS_TP1$PTL_P_LAST, adp_PTL_CLS_TP1$PTL_CLS_TP1, decreasing = FALSE),]
+
+cls_func <- function(first,last){
+  unique(na.omit(adp_PTL_CLS_TP1[grepl(as.character(last), adp_PTL_CLS_TP1$PTL_P_LAST) & grepl(as.character(first), adp_PTL_CLS_TP1$PTL_P_FIRST),]$PTL_CLS_TP1))
+}
+clss <- mapply(cls_func, provider_tab_new3$FirstName, provider_tab_new3$LastName)
+length(clss)
+table(unlist(lapply(clss, length)))
+
+c <- unlist(lapply(clss, function(x){
+  d <- data.frame(table(x))
+  d <- d[order(d$Freq, decreasing = TRUE),]
+  if(class(d)=="data.frame"){d <- d[1,1]; d <- as.character(d)}else{d <- NA}}))
+
+p <- unlist(lapply(clss, function(x){
+    d <- data.frame(prop.table(table(x)))
+    if(nrow(d)>0){
+      d <- d[order(d$Freq, decreasing = TRUE),]
+      d <- round(d[1,2]*100,1)
+    }else{d <- NA}}))
+
+cp <- paste0(c, " ", "(", p, "%", ")")
+
+provider_tab_new3$PTL_CLS_TP1 <- cp
+
+#filling in missing
+length(which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)")) #170
+n=length(which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)"))
+
+#fuzzy matching provider names that have missing licenses one by one
+provider_tab_new3_miss <- provider_tab_new3[which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)"),]
+fn <- as.character(provider_tab_new3[which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)"),1])
+ln <- as.character(provider_tab_new3[which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)"),2])
+for(i in 1:n){
+  #provider last name with missing spc
+  x <- stringdist(ln[i], adp_PTL_CLS_TP1$PTL_P_LAST)
+  y <- stringdist(fn[i], adp_PTL_CLS_TP1$PTL_P_FIRST)
+  if(which.min(x)==which.min(y)){
+    if(!is.na(adp_PTL_CLS_TP1$PTL_CLS_TP1[which.min(x)])){
+      provider_tab_new3_miss$PTL_CLS_TP1[i] <- paste0(adp_PTL_CLS_TP1$PTL_CLS_TP1[which.min(x)], " ", "(100%)")
+    }else{
+      provider_tab_new3_miss$PTL_CLS_TP1[i] <- "NA (NA%)"
+    }
+  }
+}
+table(provider_tab_new3_miss$PTL_CLS_TP1)
+
+provider_tab_new4 <- rbind.data.frame(provider_tab_new3_miss, provider_tab_new3[-which(provider_tab_new3$PTL_CLS_TP1=="NA (NA%)"),])
+provider_tab_new4 <- provider_tab_new4[order(provider_tab_new4$LastName, decreasing = FALSE),]
 ```
 
 
