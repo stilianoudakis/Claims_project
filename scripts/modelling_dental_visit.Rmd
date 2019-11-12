@@ -779,18 +779,17 @@ hoslem.test(model1$y, fitted(model1), g=10)
 plot(fitted(model1),
      rstandard(model1))
 
-Data.final =
-   select(mydata,
-          dental_visit,
-          HPSA_status,
-          Overall_Age_at_earliest_enrollment,
-          Overall_Race,
-          Overall_Citizen,
-          Overall_Region,
-          months_enrolled)
-Data.final = na.omit(Data.final)
-Data.final$predy = predict(model1,
-                           type="response")
+#Data.final = mydata %>%
+#   select(dental_visit,
+#          HPSA_status,
+#          Overall_Age_at_earliest_enrollment,
+#          Overall_Race,
+#          Overall_Citizen,
+#          Overall_Region,
+#          months_enrolled)
+#Data.final = na.omit(Data.final)
+#Data.final$predy = predict(model1,
+#                           type="response")
 ### Plot
 
 plot(as.numeric(dental_visit) ~ predy,
