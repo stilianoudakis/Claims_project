@@ -1455,5 +1455,65 @@ provider_tab_new4 <- rbind.data.frame(provider_tab_new3_miss, provider_tab_new3[
 provider_tab_new4 <- provider_tab_new4[order(provider_tab_new4$LastName, decreasing = FALSE),]
 ```
 
+# PTL_P_TITLE
 
-write.csv(provider_tab, "C:/Users/stili/Downloads/providers_file.csv")
+```{r}
+adp_PTL_P_TITLE <- adp %>%
+    distinct(PTL_P_FIRST, PTL_P_LAST, PTL_P_TITLE) 
+adp_PTL_P_TITLE <- adp_PTL_P_TITLE[order(adp_PTL_P_TITLE$PTL_P_LAST, adp_PTL_P_TITLE$PTL_P_TITLE, decreasing = FALSE),]
+
+title_func <- function(first,last){
+  unique(na.omit(adp_PTL_P_TITLE[grepl(as.character(last), adp_PTL_P_TITLE$PTL_P_LAST) & grepl(as.character(first), adp_PTL_P_TITLE$PTL_P_FIRST),]$PTL_P_TITLE))
+}
+titles <- mapply(title_func, provider_tab_new3$FirstName, provider_tab_new3$LastName)
+length(titles)
+table(unlist(lapply(titles, length)))
+
+c <- unlist(lapply(titles, function(x){
+  d <- data.frame(table(x))
+  d <- d[order(d$Freq, decreasing = TRUE),]
+  if(class(d)=="data.frame"){d <- d[1,1]; d <- as.character(d)}else{d <- NA}}))
+
+p <- unlist(lapply(titles, function(x){
+    d <- data.frame(prop.table(table(x)))
+    if(nrow(d)>0){
+      d <- d[order(d$Freq, decreasing = TRUE),]
+      d <- round(d[1,2]*100,1)
+    }else{d <- NA}}))
+
+cp <- paste0(c, " ", "(", p, "%", ")")
+
+provider_tab_new4$PTL_P_TITLE <- cp
+
+#filling in missing
+length(which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)")) #441
+n=length(which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)"))
+
+#fuzzy matching provider names that have missing licenses one by one
+provider_tab_new4_miss <- provider_tab_new4[which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)"),]
+fn <- as.character(provider_tab_new4[which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)"),1])
+ln <- as.character(provider_tab_new4[which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)"),2])
+for(i in 1:n){
+  #provider last name with missing spc
+  x <- stringdist(ln[i], adp_PTL_P_TITLE$PTL_P_LAST)
+  y <- stringdist(fn[i], adp_PTL_P_TITLE$PTL_P_FIRST)
+  if(which.min(x)==which.min(y)){
+    if(!is.na(adp_PTL_P_TITLE$PTL_P_TITLE[which.min(x)])){
+      provider_tab_new4_miss$PTL_P_TITLE[i] <- paste0(adp_PTL_P_TITLE$PTL_P_TITLE[which.min(x)], " ", "(100%)")
+    }else{
+      provider_tab_new4_miss$PTL_P_TITLE[i] <- "NA (NA%)"
+    }
+  }
+}
+table(provider_tab_new4_miss$PTL_P_TITLE)
+
+provider_tab_new5 <- rbind.data.frame(provider_tab_new4_miss, provider_tab_new4[-which(provider_tab_new4$PTL_P_TITLE=="NA (NA%)"),])
+provider_tab_new5 <- provider_tab_new5[order(provider_tab_new5$LastName, decreasing = FALSE),]
+```
+
+# Saving file
+
+```{r}
+write.csv(provider_tab_new5, "C:/Users/stili/Downloads/providers_file.csv")
+```
+
