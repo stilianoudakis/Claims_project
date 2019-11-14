@@ -741,7 +741,7 @@ names(services_table) <- c("Variable",
 
 # Modelling
 
-## Logistic regression on full data
+## Logistic regression on full data; probability of having a dental visit
 
 ```{r}
 #stepwise results:
@@ -770,7 +770,7 @@ anova(model1,
 round(exp(cbind(coef(model1), confint(model1))) ,3) 
 ```
 
-
+<!--
 ### Diagnostics
 
 ```{r}
@@ -844,6 +844,8 @@ ggplot(data=predicted.data, aes(x=rank, y=probability.of.dv)) +
 prob <- predict(model1, type = "response")
 rocp <- roc(mydata_final$dental_visit ~ prob, plot = TRUE, print.auc = TRUE)
 ```
+
+-->
 
 <!--
 ## Removing obs with high cooks distances
@@ -979,6 +981,28 @@ fancyRpartPlot(model.tree$finalModel)
 ```
 
 -->
+
+## Logistic regression on partial data; given you had a dental visit, probability of having preventative-type service
+
+```{r}
+mydata_final2 <- mydata_final[which(mydata_final$dental_visit=="Yes"),]
+
+model2 <- glm(Preventive ~ HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled,
+              family=binomial(link='logit'),
+              data=mydata_final2)
+summary(model2)
+anova(model2, test="Chisq")
+Anova(model2, type="II", test="Wald")
+anova(model2,
+      update(model2, ~1),    
+      test="Chisq")
+round(exp(cbind(coef(model2), confint(model2))) ,3) 
+```
 
 ## Two-Part Models
 
