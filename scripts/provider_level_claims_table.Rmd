@@ -1517,3 +1517,17 @@ provider_tab_new5 <- provider_tab_new5[order(provider_tab_new5$LastName, decreas
 write.csv(provider_tab_new5, "C:/Users/stili/Downloads/providers_file.csv")
 ```
 
+# Fix mismatched provider; TRAN, AN should be TRAN, DAN with 1 lencense 442000275, the other lincense (401410626) belongs to TRAN, MYVAN
+
+```{r}
+provider_file <- read.csv("C:/Users/stili/Downloads/providers_file.csv", header = T)
+
+provider_file$License_2[which(provider_file$FirstName=="AN" & provider_file$LastName=="TRAN")] <- NA
+```
+
+# Resave file
+
+```{r}
+write.csv(provider_file, "C:/Users/stili/Downloads/providers_file.csv")
+```
+
