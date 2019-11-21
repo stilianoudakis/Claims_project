@@ -987,12 +987,23 @@ fancyRpartPlot(model.tree$finalModel)
 ```{r}
 mydata_final2 <- mydata_final[which(mydata_final$dental_visit=="Yes"),]
 
+mydata_final2$Preventive <- factor(ifelse(mydata_final2$Preventive==1, "Yes", "No"))
+
+mydata_final2$FY2015_claims <- factor(ifelse(mydata_final2$FY2015_claims==1,"Yes","No"))
+mydata_final2$FY2016_claims <- factor(ifelse(mydata_final2$FY2016_claims==1,"Yes","No"))
+mydata_final2$FY2017_claims <- factor(ifelse(mydata_final2$FY2017_claims==1,"Yes","No"))
+mydata_final2$FY2018_claims <- factor(ifelse(mydata_final2$FY2018_claims==1,"Yes","No"))
+
 model2 <- glm(Preventive ~ HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
                              Overall_Citizen + 
                              Overall_Region + 
-                             months_enrolled,
+                             months_enrolled +
+                             FY2015_claims +
+                             FY2016_claims +
+                             FY2017_claims +
+                             FY2018_claims,
               family=binomial(link='logit'),
               data=mydata_final2)
 summary(model2)
@@ -1003,6 +1014,33 @@ anova(model2,
       test="Chisq")
 round(exp(cbind(coef(model2), confint(model2))) ,3) 
 ```
+
+## Logistic regression on partial data; given you had a dental visit, probability of having treatment-type service
+
+```{r}
+mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "Yes", "No"))
+
+model3 <- glm(Treatment ~ HPSA_status + 
+                             Overall_Age_at_earliest_enrollment + 
+                             Overall_Race + 
+                             Overall_Citizen + 
+                             Overall_Region + 
+                             months_enrolled +
+                             FY2015_claims +
+                             FY2016_claims +
+                             FY2017_claims +
+                             FY2018_claims,
+              family=binomial(link='logit'),
+              data=mydata_final2)
+summary(model3)
+anova(model3, test="Chisq")
+Anova(model3, type="II", test="Wald")
+anova(model3,
+      update(model3, ~1),    
+      test="Chisq")
+round(exp(cbind(coef(model3), confint(model3))) ,3) 
+```
+
 
 ## Two-Part Models
 
