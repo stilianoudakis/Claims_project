@@ -1018,7 +1018,7 @@ round(exp(cbind(coef(model2), confint(model2))) ,3)
 ## Logistic regression on partial data; given you had a dental visit, probability of having treatment-type service
 
 ```{r}
-mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "Yes", "No"))
+mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "No", "Yes"))
 
 model3 <- glm(Treatment ~ HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
