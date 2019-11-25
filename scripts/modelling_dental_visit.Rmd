@@ -753,12 +753,23 @@ names(services_table) <- c("Variable",
 #- Overall_Citizen  1    91334 91360
 #- Overall_Region   5    91625 91643
 #no variables were removed
-model1 <- glm(dental_visit ~ HPSA_status + 
+
+fydat <- mydata_final[,c(6:9)]
+for(i in 1:ncol(fydat)){
+  year <- as.numeric(gsub("FY", "", names(fydat)[i]))
+  fydat[,i] <- ifelse(fydat[,i]=="Yes", year, 9999)
+}
+mydata_final$eligibilityFY <- apply(fydat,1,min)
+mydata_final$eligibilityFY <- factor(as.character(mydata_final$eligibilityFY), levels=c("2015","2016","2017","2018"))
+table(mydata_final$eligibilityFY)
+
+model1 <- glm(dental_visit ~ months_enrolled +
+                             HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
                              Overall_Citizen + 
                              Overall_Region + 
-                             months_enrolled,
+                             eligibilityFY,
               family=binomial(link='logit'),
               data=mydata_final)
 summary(model1)
@@ -989,21 +1000,18 @@ mydata_final2 <- mydata_final[which(mydata_final$dental_visit=="Yes"),]
 
 mydata_final2$Preventive <- factor(ifelse(mydata_final2$Preventive==1, "Yes", "No"))
 
-mydata_final2$FY2015_claims <- factor(ifelse(mydata_final2$FY2015_claims==1,"Yes","No"))
-mydata_final2$FY2016_claims <- factor(ifelse(mydata_final2$FY2016_claims==1,"Yes","No"))
-mydata_final2$FY2017_claims <- factor(ifelse(mydata_final2$FY2017_claims==1,"Yes","No"))
-mydata_final2$FY2018_claims <- factor(ifelse(mydata_final2$FY2018_claims==1,"Yes","No"))
+#mydata_final2$FY2015_claims <- factor(ifelse(mydata_final2$FY2015_claims==1,"Yes","No"))
+#mydata_final2$FY2016_claims <- factor(ifelse(mydata_final2$FY2016_claims==1,"Yes","No"))
+#mydata_final2$FY2017_claims <- factor(ifelse(mydata_final2$FY2017_claims==1,"Yes","No"))
+#mydata_final2$FY2018_claims <- factor(ifelse(mydata_final2$FY2018_claims==1,"Yes","No"))
 
-model2 <- glm(Preventive ~ HPSA_status + 
+model2 <- glm(Preventive ~ months_enrolled +
+                             HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
                              Overall_Citizen + 
                              Overall_Region + 
-                             months_enrolled +
-                             FY2015_claims +
-                             FY2016_claims +
-                             FY2017_claims +
-                             FY2018_claims,
+                             eligibilityFY,
               family=binomial(link='logit'),
               data=mydata_final2)
 summary(model2)
@@ -1020,16 +1028,13 @@ round(exp(cbind(coef(model2), confint(model2))) ,3)
 ```{r}
 mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "No", "Yes"))
 
-model3 <- glm(Treatment ~ HPSA_status + 
+model3 <- glm(Treatment ~ months_enrolled +
+                             HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
                              Overall_Citizen + 
                              Overall_Region + 
-                             months_enrolled +
-                             FY2015_claims +
-                             FY2016_claims +
-                             FY2017_claims +
-                             FY2018_claims,
+                             eligibilityFY,
               family=binomial(link='logit'),
               data=mydata_final2)
 summary(model3)
