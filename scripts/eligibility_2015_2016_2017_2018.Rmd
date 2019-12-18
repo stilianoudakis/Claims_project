@@ -2085,6 +2085,7 @@ myfunc <- function(x){
                                   cummax(as.numeric(X2)))[-n()])) %>%
     summarise(start = first(X1), end = last(X2))
   me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
   return(me)
 }
 
@@ -2094,16 +2095,25 @@ ffs_mco_2015_2016_2017_2018$months_enrolled <- medata$me
 summary(ffs_mco_2015_2016_2017_2018$months_enrolled)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 #   1.00    8.00   12.00   13.69   18.00   48.00 
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   2.00    8.00   12.00   12.86   17.00   54.00 
 
 ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
                                           ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
                                                  ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
                                                         ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
 ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
-
+table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat)
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
+#       304      17070      17283      31852      37476 
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
+#       433      17374      18012      35890      32276 
+       
 ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$months_enrolled_cat=="< 3 mos"),]
 dim(ffs_mco_2015_2016_2017_2018)
-#103460    
+#103460  
+#103681
+#103552 
 ```
 
 ## 2015
@@ -2142,17 +2152,34 @@ myfunc <- function(x){
                                   cummax(as.numeric(X2)))[-n()])) %>%
     summarise(start = first(X1), end = last(X2))
   me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
   return(me)
 }
 
 medata_2015$me_2015 <- apply(medata_2015, 1, myfunc)
 
 eligibility_2015$months_enrolled_2015 <- medata_2015$me_2015
+summary(eligibility_2015$months_enrolled_2015)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   5.000   8.000   7.862  11.000  12.000 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2015$srecip)] <- eligibility_2015$months_enrolled_2015
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat)] <- "Not Eligible"
+ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
+
 le3me_srecip_2015 <- eligibility_2015$srecip[which(eligibility_2015$months_enrolled_2015<3)]
 
 ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2015),]
 dim(ffs_mco_2015_2016_2017_2018)
-#103371    
+#103371 
+#103343
 ```
 
 
@@ -2192,17 +2219,34 @@ myfunc <- function(x){
                                   cummax(as.numeric(X2)))[-n()])) %>%
     summarise(start = first(X1), end = last(X2))
   me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
   return(me)
 }
 
 medata_2016$me_2016 <- apply(medata_2016, 1, myfunc)
 
 eligibility_2016$months_enrolled_2016 <- medata_2016$me_2016
+summary(eligibility_2016$months_enrolled_2016)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   6.000   9.000   8.523  12.000  12.000 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2016$srecip)] <- eligibility_2016$months_enrolled_2016
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat)] <- "Not Eligible"
+ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
+
 le3me_srecip_2016 <- eligibility_2016$srecip[which(eligibility_2016$months_enrolled_2016<3)]
 
 ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2016),]
 dim(ffs_mco_2015_2016_2017_2018)
-#103309    
+#103309 
+#103216
 ```
 
 
@@ -2242,17 +2286,34 @@ myfunc <- function(x){
                                   cummax(as.numeric(X2)))[-n()])) %>%
     summarise(start = first(X1), end = last(X2))
   me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
   return(me)
 }
 
 medata_2017$me_2017 <- apply(medata_2017, 1, myfunc)
 
 eligibility_2017$months_enrolled_2017 <- medata_2017$me_2017
+summary(eligibility_2017$months_enrolled_2017)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   6.000   9.000   8.721  12.000  12.000 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2017$srecip)] <- eligibility_2017$months_enrolled_2017
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat)] <- "Not Eligible"
+ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
+
 le3me_srecip_2017 <- eligibility_2017$srecip[which(eligibility_2017$months_enrolled_2017<3)]
 
 ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2017),]
 dim(ffs_mco_2015_2016_2017_2018)
-#103227    
+#103227  
+#103164
 ```
 
 
@@ -2292,17 +2353,34 @@ myfunc <- function(x){
                                   cummax(as.numeric(X2)))[-n()])) %>%
     summarise(start = first(X1), end = last(X2))
   me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
+  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
   return(me)
 }
 
 medata_2018$me_2018 <- apply(medata_2018, 1, myfunc)
 
 eligibility_2018$months_enrolled_2018 <- medata_2018$me_2018
+summary(eligibility_2018$months_enrolled_2018)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   2.00    7.00   10.00    9.13   12.00   12.00 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2018$srecip)] <- eligibility_2018$months_enrolled_2018
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- NA
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat)] <- "Not Eligible"
+ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
+
 le3me_srecip_2018 <- eligibility_2018$srecip[which(eligibility_2018$months_enrolled_2018<3)]
 
 ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2018),]
 dim(ffs_mco_2015_2016_2017_2018)
-#103204    
+#103204 
+#103153 
 ```
 
 
@@ -2424,7 +2502,7 @@ ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT <- factor(ffs_mco_2015_2016
                                                                           "HPD 22"))
 
 dim(ffs_mco_2015_2016_2017_2018)
-#103204    156
+#103204    158
 ```
 
 

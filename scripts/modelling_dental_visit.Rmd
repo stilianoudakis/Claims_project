@@ -60,6 +60,14 @@ vars <- c("srecip",
           "HEALTH_PLANNING_REGION",
           "months_enrolled",
           "months_enrolled_cat",
+          "months_enrolled_2015",
+          #"months_enrolled_2015_cat",
+          "months_enrolled_2016",
+          #"months_enrolled_2016_cat",
+          "months_enrolled_2017",
+          #"months_enrolled_2017_cat",
+          "months_enrolled_2018",
+          #"months_enrolled_2018_cat",
           "FY2015",
           "FY2016",
           "FY2017",
@@ -202,7 +210,23 @@ table(mydata$Overall_Citizen)
 #months enrolled
 mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
 mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_cat)
+table(mydata$months_enrolled_cat, exclude = "ifany")
+
+mydata$months_enrolled_2015_cat <- ifelse(mydata$months_enrolled_2015 <= 10, "3-10 months", ">10 months")
+mydata$months_enrolled_2015_cat <- factor(mydata$months_enrolled_2015_cat, levels=c("3-10 months", ">10 months"))
+table(mydata$months_enrolled_2015_cat, exclude = "ifany")
+
+mydata$months_enrolled_2016_cat <- ifelse(mydata$months_enrolled_2016 <= 10, "3-10 months", ">10 months")
+mydata$months_enrolled_2016_cat <- factor(mydata$months_enrolled_2016_cat, levels=c("3-10 months", ">10 months"))
+table(mydata$months_enrolled_2016_cat, exclude = "ifany")
+
+mydata$months_enrolled_2017_cat <- ifelse(mydata$months_enrolled_2017 <= 10, "3-10 months", ">10 months")
+mydata$months_enrolled_2017_cat <- factor(mydata$months_enrolled_2017_cat, levels=c("3-10 months", ">10 months"))
+table(mydata$months_enrolled_2017_cat, exclude = "ifany")
+
+mydata$months_enrolled_2018_cat <- ifelse(mydata$months_enrolled_2018 <= 10, "3-10 months", ">10 months")
+mydata$months_enrolled_2018_cat <- factor(mydata$months_enrolled_2018_cat, levels=c("3-10 months", ">10 months"))
+table(mydata$months_enrolled_2018_cat, exclude = "ifany")
 
 #region
 mydata$Overall_Region <- factor(mydata$Overall_Region)
