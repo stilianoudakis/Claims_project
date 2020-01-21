@@ -46,18 +46,90 @@ setwd("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project
 ```{r}
 eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
 
-dim(eligibility) #103204    156
+dim(eligibility) #103204    164
 length(unique(eligibility$srecip)) #103204
 
+eligibility <- eligibility[order(eligibility$srecip),]
 ```
 
-# Creating date of earliest eligibility to calculate policy maturation variable
+
+# Read in Claims data
 
 ```{r}
-DOEE <- apply(eligibility[,grep(paste0(c("ffs_beg","mco_beg"),collapse = "|"), names(eligibility))],1,function(x){min(na.omit(x))})
+#claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+#                    sheet = "Pregnant_claims_2015_2018",
+#                    startRow = 1,
+#                    colNames = TRUE,
+#                    na.strings = "",
+#                    detectDates = TRUE)
+#dim(claims) #184976     41
 
-eligibility$policymaturation <- floor(as.numeric((as.Date(DOEE)-as.Date("2015-03-01"))/30))
-eligibility$policymaturation[which(eligibility$policymaturation<0)] <- 0
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+dim(unique_claims)
+#179516     57
+
+unique_claims <- unique_claims %>%
+  mutate(SERVICE_DATE2 = mdy(unique_claims$SERVICE_DATE)) %>%
+  dplyr::arrange(SRECIP,SERVICE_DATE2)
+```
+
+# Creating date of earliest eligibility/dental visit to calculate policy maturation variable
+
+```{r}
+mydata <- eligibility
+
+DOEE <- apply(mydata[,grep(paste0(c("ffs_beg","mco_beg"),collapse = "|"), names(mydata))],1,function(x){min(na.omit(x))})
+mydata$policymaturation.E <- floor(as.numeric((as.Date(DOEE)-as.Date("2015-03-01"))/30))
+mydata$policymaturation.E[which(mydata$policymaturation.E<0)] <- 0
+summary(mydata$policymaturation.E)
+
+d2 <- mydata[which(mydata$srecip %in% unique_claims$SRECIP),]
+DOEV <- unique_claims %>%
+  dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
+  mutate(SERVICE_DATE2 = mdy(unique_claims$SERVICE_DATE)) %>%
+  group_by(SRECIP) %>%
+  arrange(SRECIP,SERVICE_DATE2) %>%
+  filter(row_number()==1)
+d2$policymaturation <- floor(as.numeric((as.Date(DOEV$SERVICE_DATE2)-as.Date("2015-03-01"))/30))
+
+mydata$policymaturation.DV <- NA
+mydata$policymaturation.DV[which(mydata$srecip %in% d2$srecip)] <- d2$policymaturation
+mydata$policymaturation.DV[is.na(mydata$policymaturation.DV)] <- 0
+summary(mydata$policymaturation.DV)
+
+
+#d1 <- eligibility[-which(eligibility$srecip %in% unique_claims$SRECIP),]
+#d2 <- eligibility[which(eligibility$srecip %in% unique_claims$SRECIP),]
+#
+#DOEE <- apply(d1[,grep(paste0(c("ffs_beg","mco_beg"),collapse = "|"), names(d1))],1,function(x){min(na.omit(x))})
+#d1$policymaturation1 <- floor(as.numeric((as.Date(DOEE)-as.Date("2015-03-01"))/30))
+#
+#DOEV <- unique_claims %>%
+#  dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
+#  mutate(SERVICE_DATE2 = mdy(unique_claims$SERVICE_DATE)) %>%
+#  group_by(SRECIP) %>%
+#  arrange(SRECIP,SERVICE_DATE2) %>%
+#  filter(row_number()==1)
+#d2$policymaturation2 <- floor(as.numeric((as.Date(DOEV$SERVICE_DATE2)-as.Date("2015-03-01"))/30))
+#
+#mydata <- rbind.data.frame(eligibility[-which(eligibility$srecip %in% unique_claims$SRECIP),],
+#                           eligibility[which(eligibility$srecip %in% unique_claims$SRECIP),])
+#mydata$policymaturation <- c(d1$policymaturation1,d2$policymaturation2)
+#mydata$policymaturation[which(mydata$policymaturation<0)] <- 0
+```
+
+# Creating response vector based on if patients (SRECIP) in eligibility are in claims
+
+```{r}
+mydata$dental_visit <- as.factor(ifelse(mydata$srecip %in% unique_claims$SRECIP, "Yes", "No"))
+
+table(mydata$dental_visit)
+#   No   Yes 
+#86313 16891 
+
+prop.table(table(mydata$dental_visit))
+#       No       Yes 
+#0.8363339 0.1636661 
 ```
 
 # Keeping only necessary variables from eligibility
@@ -85,41 +157,12 @@ vars <- c("srecip",
           "FY2016",
           "FY2017",
           "FY2018",
-          "policymaturation")
-eligibility <- eligibility[, which(names(eligibility) %in% vars)]
-dim(eligibility) #103204     19
+          "policymaturation.E",
+          "policymaturation.DV",
+          "dental_visit")
+mydata <- mydata[, which(names(mydata) %in% vars)]
+dim(mydata) #103204     20
 
-```
-
-# Read in Claims data
-
-```{r}
-#claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
-#                    sheet = "Pregnant_claims_2015_2018",
-#                    startRow = 1,
-#                    colNames = TRUE,
-#                    na.strings = "",
-#                    detectDates = TRUE)
-#dim(claims) #184976     41
-
-unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
-```
-
-# Creating response vector based on if patients (SRECIP) in eligibility are in claims
-
-```{r}
-mydata <- eligibility
-
-#mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique(claims$SRECIP), "Yes", "No"))
-
-mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique_claims$SRECIP, "Yes", "No"))
-
-table(mydata$dental_visit)
-#   No   Yes 
-#86313 16891 
-prop.table(table(mydata$dental_visit))
-#       No       Yes 
-#0.8363339 0.1636661 
 ```
 
 # Creating variables from claims data
@@ -213,10 +256,12 @@ mydata$Overall_Race[which(mydata$Overall_Race=="Hispanic" |
                             mydata$Overall_Race=="Other")] <- "Other"
 mydata$Overall_Race <- factor(mydata$Overall_Race, levels=c("White", "Black", "Other"))
 table(mydata$Overall_Race)
+#White Black Other 
+#56672 38727  7805 
 
 #citizenship
 mydata <- mydata[-which(mydata$Overall_Citizen=="Missing"),]
-dim(mydata) #103200     17
+dim(mydata) #103200     33
 mydata$Overall_Citizen <- factor(mydata$Overall_Citizen, levels=c("US (or naturalized) citizen", "Non-US citizen"))
 table(mydata$Overall_Citizen)
 #US (or naturalized) citizen              Non-US citizen 
@@ -226,6 +271,8 @@ table(mydata$Overall_Citizen)
 mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
 mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
 table(mydata$months_enrolled_cat, exclude = "ifany")
+#3-10 months  >10 months 
+#      42077       61123
 
 mydata$months_enrolled_2015_cat <- ifelse(mydata$months_enrolled_2015 <= 10, "3-10 months", ">10 months")
 mydata$months_enrolled_2015_cat <- factor(mydata$months_enrolled_2015_cat, levels=c("3-10 months", ">10 months"))
@@ -268,7 +315,7 @@ mydata_final <- mydata
 str(mydata_final)
 ```
 
-
+<!--
 # Table of demographic variables
 
 ##stratifying by dental visit
@@ -784,6 +831,7 @@ names(services_table) <- c("Variable",
                               paste0("Eligible in 2017 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2017_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"),
                               paste0("Eligible in 2018 and had dental visit (N=", nrow(mydata_final[which(mydata_final$FY2018_claims==1 & mydata_final$dental_visit=="Yes"),]), ")"))
 ```
+-->
 
 # Modelling
 
@@ -810,7 +858,7 @@ mydata_final$eligibilityFY <- factor(as.character(mydata_final$eligibilityFY), l
 table(mydata_final$eligibilityFY)
 
 model1 <- glm(dental_visit ~ months_enrolled +
-                             policymaturation +
+                             policymaturation.E +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
@@ -1052,7 +1100,7 @@ mydata_final2$Preventive <- factor(ifelse(mydata_final2$Preventive==1, "Yes", "N
 #mydata_final2$FY2018_claims <- factor(ifelse(mydata_final2$FY2018_claims==1,"Yes","No"))
 
 model2 <- glm(Preventive ~ months_enrolled +
-                             policymaturation +
+                             policymaturation.DV +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
@@ -1075,7 +1123,7 @@ round(exp(cbind(coef(model2), confint(model2))) ,3)
 mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "No", "Yes"))
 
 model3 <- glm(Treatment ~ months_enrolled +
-                             policymaturation +
+                             policymaturation.DV +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
                              Overall_Race + 
