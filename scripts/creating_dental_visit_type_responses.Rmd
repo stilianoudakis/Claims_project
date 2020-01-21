@@ -1,0 +1,203 @@
+---
+title: "Creating dental visit type responses"
+author: "Spiro Stilianoudakis"
+date: "12/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Libraries
+
+```{r}
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(reshape2)
+library(sas7bdat)
+library(lubridate)
+library(tidyr)
+library(tableone)
+library(pscl)
+library(pROC)
+library(DMwR)
+library(caret)
+library(rattle)
+library(randomForest)
+library(reprtree)
+library(car)
+library(ResourceSelection)
+library(pscl)
+library(countreg)
+library("lmtest")
+```
+
+# Read in Eligibility data
+
+```{r}
+eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
+
+dim(eligibility) #103204    156
+length(unique(eligibility$srecip)) #103204
+
+#keeping only necessary variables
+vars <- c("srecip", 
+          "Overall_Age_at_earliest_enrollment",
+          "Overall_Citizen",
+          "Overall_Region",
+          "Overall_Race",
+          "Overall_R_FIPS",
+          "HEALTH_PLANNING_DISTRICT",
+          "HEALTH_PLANNING_REGION",
+          "months_enrolled",
+          "months_enrolled_cat",
+          "months_enrolled_2015",
+          #"months_enrolled_2015_cat",
+          "months_enrolled_2016",
+          #"months_enrolled_2016_cat",
+          "months_enrolled_2017",
+          #"months_enrolled_2017_cat",
+          "months_enrolled_2018",
+          #"months_enrolled_2018_cat",
+          "policymaturation",
+          "FY2015",
+          "FY2016",
+          "FY2017",
+          "FY2018")
+eligibility <- eligibility[, which(names(eligibility) %in% vars)]
+dim(eligibility) #103204     18
+```
+
+# Read in Claims data
+
+```{r}
+#claims <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/Pregnant_claims_2015_2018.xlsx",
+#                    sheet = "Pregnant_claims_2015_2018",
+#                    startRow = 1,
+#                    colNames = TRUE,
+#                    na.strings = "",
+#                    detectDates = TRUE)
+#dim(claims) #184976     41
+
+unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/unique_claims.rds")
+```
+
+# Creating response vector based on if patients (SRECIP) in eligibility are in claims
+
+```{r}
+mydata <- eligibility
+
+#mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique(claims$SRECIP), "Yes", "No"))
+
+mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique_claims$SRECIP, "Yes", "No"))
+
+table(mydata$dental_visit)
+#   No   Yes 
+#86313 16891 
+prop.table(table(mydata$dental_visit))
+#       No       Yes 
+#0.8363339 0.1636661 
+```
+
+# Creating different dental type variables according to first dental visit
+
+## 1. If preventative then list as preventative
+## 2. If treatment then list as treatment
+## 3. if diagnostic followed by preventative list as preventative
+## 4. if diagnostic followed by treatment list as treatment
+## 5. if diagnostic and no other type list as diagnostic
+## 6. if all happening in one list as all
+
+```{r}
+firstVisit <- unique_claims %>%
+    dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
+    mutate(SERVICE_DATE2 = mdy(unique_claims$SERVICE_DATE)) %>%
+    group_by(SRECIP) %>%
+    arrange(SRECIP,SERVICE_DATE2) %>%
+    filter(row_number()==1)
+firstVisit <- as.data.frame(firstVisit)
+dim(firstVisit)
+#16891     4
+  
+followupVisit <- unique_claims %>%
+    dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
+    mutate(SERVICE_DATE2 = lubridate::mdy(unique_claims$SERVICE_DATE)) %>%
+    group_by(SRECIP) %>%
+    arrange(SRECIP,SERVICE_DATE2) %>%
+    filter(row_number()!=1) %>%
+    filter(SERVICE_DATE2 == min(SERVICE_DATE2))
+followupVisit <- as.data.frame(followupVisit)
+followupVisit$CDT_category <- as.character(followupVisit$CDT_category)
+dim(followupVisit)
+#44700     4
+length(unique(followupVisit$SRECIP))
+#16298
+
+SameDayVisit <- numeric()
+for(i in 1:length(followupVisit$SRECIP)){
+  d <- firstVisit$SERVICE_DATE[firstVisit$SRECIP==followupVisit$SRECIP[i]]
+  
+  SameDayVisit[i] <- ifelse(d==followupVisit$SERVICE_DATE[i],1,0)
+}
+followupVisit$SameDayVisit <- SameDayVisit
+followupVisit2 <- followupVisit[-which(followupVisit$SameDayVisit==0),]
+followupVisit2
+#39291     5
+length(unique(followupVisit2$SRECIP))
+#14481
+
+
+followupPREVENTIVE <- numeric()
+followupTREATMENT <- numeric()
+followupDIAGNOSTIC <- numeric()
+followupALL <- numeric()
+for(i in 1:length(firstVisit$SRECIP)){
+  d <- followupVisit2 %>% filter(SRECIP==firstVisit$SRECIP[i])
+  cdt <- names(table(d$CDT_category))
+  
+  if(nrow(d)==0){
+    followupPREVENTIVE[i] <- NA
+    followupTREATMENT[i] <- NA
+    followupDIAGNOSTIC[i] <- NA
+    followupALL[i] <- NA
+  }else{
+    followupPREVENTIVE[i] <- ifelse((firstVisit$CDT_category[firstVisit$SRECIP==firstVisit$SRECIP[i]]=="PREVENTIVE") |
+                                                 ("PREVENTIVE" %in% cdt),1,0)
+    followupTREATMENT[i] <- ifelse((firstVisit$CDT_category[firstVisit$SRECIP==firstVisit$SRECIP[i]]!="PREVENTIVE" &
+                                                 firstVisit$CDT_category[firstVisit$SRECIP==firstVisit$SRECIP[i]]!="DIAGNOSTIC") &
+                                                 !("PREVENTIVE" %in% cdt) & !("DIAGNOSTIC" %in% cdt),1,0)
+    followupDIAGNOSTIC[i] <- ifelse((firstVisit$CDT_category[firstVisit$SRECIP==firstVisit$SRECIP[i]]=="DIAGNOSTIC") &
+                                                 (length(cdt)==1) &
+                                                 ("DIAGNOSTIC" %in% cdt),1,0)
+    followupALL[i] <- ifelse(length(unique(as.character(firstVisit$CDT_category[firstVisit$SRECIP==firstVisit$SRECIP[i]]),
+                                              cdt))==7,1,0)
+  }
+}
+firstVisit$followupPREVENTIVE <- followupPREVENTIVE
+firstVisit$followupTREATMENT <- followupTREATMENT
+firstVisit$followupDIAGNOSTIC <- followupDIAGNOSTIC
+firstVisit$followupALL <- followupALL
+
+#mutually exclusive?
+length(which(rowSums(firstVisit[,c(5:8)])>1))
+#0
+
+firstVisit$NewDVType <- ifelse(firstVisit$followupPREVENTIVE==1,"PREVENTIVE",
+                               ifelse(firstVisit$followupTREATMENT==1,"TREATMENT",
+                                      ifelse(firstVisit$followupDIAGNOSTIC==1,"DIAGNOSTIC","ALL")))
+
+#code those that didn't have multiple services as whatever the first service was
+firstVisit$NewDVType[is.na(firstVisit$NewDVType)] <- as.character(firstVisit$CDT_category[is.na(firstVisit$NewDVType)])
+
+table(firstVisit$NewDVType)
+#                         ALL                   DIAGNOSTIC                  ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER                 PERIODONTICS 
+#                        2725                         7484                           55                          148                          203                           76 
+#                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
+#                        5310                          168                          722 
+
+#some categories outside of d,p,t, or a because they had some other service only once
+```
+
