@@ -54,9 +54,12 @@ d <- unique_claims %>% group_by(SRECIP) %>% summarize(x = length(unique(FY)))
 table(d$x)
 #    1     2     3     4 
 #14094  2641   151     5 
+#    1     2     3     4 
+#12681  2504   148     6 
 
 d$SRECIP[which(d$x==4)]
 #"312400495901" "354416003605" "361801135801" "393637009402" "605557201003"
+#"312400495901" "354416003605" "361801135801" "393637009402" "605557201003" "723551135103"
 
 unique_claims[which(unique_claims$SRECIP=="312400495901"),]
 ```
@@ -1167,5 +1170,13 @@ ggplot(data, aes(fill=Claim_Type, y=Count, x=Year)) +
         legend.title=element_text(size=20))
   
 spread(data, Year, Count) 
+#                    Claim_Type 2015 2016 2017 2018
+#1                 Preventative  865 2668 3304 3090
+#2                   Diagnostic 1525 4716 5635 5431
+#3                  Restorative  895 2813 3710 3578
+#4                 Periodontics  302 1035 1391 1383
+#5                  Endodontics  391 1192 1616 1630
+#6 Oral & Maxillofacial Surgery  596 1904 2194 1862
+#7                        Other  337 1090 1276 1175
 ```
 

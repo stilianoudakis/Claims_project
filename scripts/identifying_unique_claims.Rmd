@@ -51,7 +51,9 @@ length(unique(claims$CLAIM_NUMBER)) #64830
 
 ```{r}
 eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018.rds")
-dim(eligibility) #103204    156
+dim(eligibility) 
+#103204    156
+#80680   164
 ```
 
 # Joining dental claims with eligibility data
@@ -63,7 +65,9 @@ claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], b
 
 #remove claims that are not in eligibility
 claims <- claims[which(claims$SRECIP %in% eligibility$srecip),]
-dim(claims) #179518     47
+dim(claims) 
+#179518     47
+#165134     49
 
 ```
 
@@ -102,6 +106,8 @@ claims$Overall_Race[which(claims$Overall_Race=="Hispanic" |
                              claims$Overall_Race=="Other")] <- "Other"
 
 table(claims$Overall_Race)
+#Black Other White 
+#52365 16691 96078 
 ```
 
 ##categorizing months enrolled
@@ -110,6 +116,8 @@ table(claims$Overall_Race)
 claims$months_enrolled_cat <- ifelse(claims$months_enrolled <= 10, "3-10 months", ">10 months")
 claims$months_enrolled_cat <- factor(claims$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
 table(claims$months_enrolled_cat)
+#3-10 months  >10 months 
+#     102391       62743
 
 ```
 
@@ -153,6 +161,10 @@ claims$CDT_category <- factor(claims$CDT_category, levels=c("PREVENTIVE",
                                                             "OTHER"))
 
 table(claims$CDT_category)
+#                  PREVENTIVE                   DIAGNOSTIC                  RESTORATIVE                 PERIODONTICS 
+#                       10567                        55735                        62360                         9431 
+#                 ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER 
+#                        8170                        14328                         4543 
 ```
 
 ##HPSA
@@ -182,9 +194,13 @@ claims$HPSA_status <- as.factor(sapply(claims$Overall_R_FIPS, function(x){ifelse
 table(claims$HPSA_status)
 #    No    Yes 
 #122992  56526 
+#    No    Yes 
+#112831  52303 
 prop.table(table(claims$HPSA_status))
 #       No       Yes 
 #0.6851235 0.3148765 
+#       No       Yes 
+#0.6832693 0.3167307 
 ```
 
 
@@ -196,7 +212,9 @@ prop.table(table(claims$HPSA_status))
 
 ```{r}
 claims_tooth <- claims[!is.na(claims$Tooth_Number),]
-dim(claims_tooth) #118618     57
+dim(claims_tooth) 
+#118618     57
+#109159     57
 table(claims_tooth$Tooth_Number, exclude = "ifany")
 
 claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -204,7 +222,9 @@ claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE)
 head(claims_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
 
 claims_nodup_tooth <- claims_tooth[!(duplicated(claims_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "Tooth_Number")])),]
-dim(claims_nodup_tooth) #118616    57
+dim(claims_nodup_tooth) 
+#118616    57
+#109157     57
 
 ```
 
@@ -214,7 +234,9 @@ dim(claims_nodup_tooth) #118616    57
 
 ```{r}
 claims_no_tooth <- claims[is.na(claims$Tooth_Number),]
-dim(claims_no_tooth) #60900    57
+dim(claims_no_tooth) 
+#60900    57
+#55975    57
 table(claims_no_tooth$Tooth_Number, exclude = "ifany")
 
 claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -222,7 +244,9 @@ claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasin
 head(claims_no_tooth[,c("CLAIM_NUMBER", "SRECIP", "SERVICE_DATE", "AMOUNT_PAID", "proc_code", "Tooth_Number", "billing_prov_NPI", "CDT_category", "FY_2015" ,"FY_2016" ,"FY_2017", "FY_2018")])
 
 claims_nodup_no_tooth <- claims_no_tooth[!(duplicated(claims_no_tooth[,c("CLAIM_NUMBER", "proc_code", "SERVICE_DATE", "AMOUNT_PAID")])),]
-dim(claims_nodup_no_tooth) #60900    57
+dim(claims_nodup_no_tooth) 
+#60900    57
+#55975    57
 
 ```
 
@@ -230,7 +254,9 @@ dim(claims_nodup_no_tooth) #60900    57
 
 ```{r}
 unique_claims <- rbind.data.frame(claims_nodup_no_tooth, claims_nodup_tooth)
-dim(unique_claims) #179516     57
+dim(unique_claims) 
+#179516     57
+#165132     57
 
 ```
 
