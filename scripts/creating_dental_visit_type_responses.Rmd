@@ -68,7 +68,9 @@ vars <- c("srecip",
           "FY2017",
           "FY2018")
 eligibility <- eligibility[, which(names(eligibility) %in% vars)]
-dim(eligibility) #103204     18
+dim(eligibility) 
+#103204     18
+#80680    18
 ```
 
 # Read in Claims data
@@ -97,9 +99,13 @@ mydata$dental_visit <- as.factor(ifelse(eligibility$srecip %in% unique_claims$SR
 table(mydata$dental_visit)
 #   No   Yes 
 #86313 16891 
+#   No   Yes 
+#65341 15339 
 prop.table(table(mydata$dental_visit))
 #       No       Yes 
 #0.8363339 0.1636661 
+#       No       Yes 
+#0.8098785 0.1901215 
 ```
 
 # Creating different dental type variables according to first dental visit
@@ -121,6 +127,7 @@ firstVisit <- unique_claims %>%
 firstVisit <- as.data.frame(firstVisit)
 dim(firstVisit)
 #16891     4
+#15339     9
   
 followupVisit <- unique_claims %>%
     dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
@@ -133,8 +140,10 @@ followupVisit <- as.data.frame(followupVisit)
 followupVisit$CDT_category <- as.character(followupVisit$CDT_category)
 dim(followupVisit)
 #44700     4
+#40451     5
 length(unique(followupVisit$SRECIP))
 #16298
+#14809
 
 SameDayVisit <- numeric()
 for(i in 1:length(followupVisit$SRECIP)){
@@ -144,10 +153,12 @@ for(i in 1:length(followupVisit$SRECIP)){
 }
 followupVisit$SameDayVisit <- SameDayVisit
 followupVisit2 <- followupVisit[-which(followupVisit$SameDayVisit==0),]
-followupVisit2
+dim(followupVisit2)
 #39291     5
+#35479     5
 length(unique(followupVisit2$SRECIP))
 #14481
+#13128
 
 
 followupPREVENTIVE <- numeric()
@@ -197,6 +208,13 @@ table(firstVisit$NewDVType)
 #                        2725                         7484                           55                          148                          203                           76 
 #                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
 #                        5310                          168                          722 
+
+#                         ALL                   DIAGNOSTIC                  ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER                 PERIODONTICS 
+#                        2480                         6816                           49                          129                          182                           64 
+#                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
+#                        4802                          154                          663 
+
+prop.table(table(firstVisit$NewDVType))
 
 #some categories outside of d,p,t, or a because they had some other service only once
 ```

@@ -1996,6 +1996,169 @@ table(ffs_mco_2015_2016_2017_2018$FY2018)
 
 #Calculating months enrolled
 
+```{r}
+reduceDates <- function(mydata){
+  mydata <- mydata[order(mydata[,2], decreasing = TRUE),]
+  mydata <- mydata[order(mydata[,1], decreasing = FALSE),]
+  mydata <- mydata[!duplicated(mydata[,1]),]
+  mydata <- mydata[!duplicated(mydata[,2]),]
+  mydata <- na.omit(mydata)
+  mydata$lagDate <- c(as.character(mydata[-1,1]),NA)
+  mydata$diffDays <- as.vector(as.Date(mydata$lagDate)-as.Date(mydata[,2]))
+  return(mydata)
+}
+
+```
+
+##Overall
+
+```{r}
+medata <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015",
+                                                     "mco_beg2_2015",
+                                                     "mco_beg3_2015",
+                                                     "mco_beg4_2015",
+                                                     "mco_end1_2015",
+                                                     "mco_end2_2015",
+                                                     "mco_end3_2015",
+                                                     "mco_end4_2015",
+                                                     
+                                                     "mco_beg1_2016",
+                                                     "mco_beg2_2016",
+                                                     "mco_beg3_2016",
+                                                     "mco_beg4_2016",
+                                                     "mco_end1_2016",
+                                                     "mco_end2_2016",
+                                                     "mco_end3_2016",
+                                                     "mco_end4_2016",
+                                                     
+                                                     "mco_beg1_2017",
+                                                     "mco_beg2_2017",
+                                                     "mco_beg3_2017",
+                                                     "mco_beg4_2017",
+                                                     "mco_end1_2017",
+                                                     "mco_end2_2017",
+                                                     "mco_end3_2017",
+                                                     "mco_end4_2017",
+                                                     
+                                                     "mco_beg1_2018",
+                                                     "mco_beg2_2018",
+                                                     "mco_beg3_2018",
+                                                     "mco_beg4_2018",
+                                                     "mco_end1_2018",
+                                                     "mco_end2_2018",
+                                                     "mco_end3_2018",
+                                                     "mco_end4_2018",
+                                                     
+                                                     "ffs_beg1_2015",
+                                                     "ffs_beg2_2015",
+                                                     "ffs_beg3_2015",
+                                                     "ffs_beg4_2015",
+                                                     "ffs_end1_2015",
+                                                     "ffs_end2_2015",
+                                                     "ffs_end3_2015",
+                                                     "ffs_end4_2015",
+                                                     
+                                                     "ffs_beg1_2016",
+                                                     "ffs_beg2_2016",
+                                                     "ffs_beg3_2016",
+                                                     "ffs_beg4_2016",
+                                                     "ffs_end1_2016",
+                                                     "ffs_end2_2016",
+                                                     "ffs_end3_2016",
+                                                     "ffs_end4_2016",
+                                                     
+                                                     "ffs_beg1_2017",
+                                                     "ffs_beg2_2017",
+                                                     "ffs_beg3_2017",
+                                                     "ffs_beg4_2017",
+                                                     "ffs_end1_2017",
+                                                     "ffs_end2_2017",
+                                                     "ffs_end3_2017",
+                                                     "ffs_end4_2017",
+                                                     
+                                                     "ffs_beg1_2018",
+                                                     "ffs_beg2_2018",
+                                                     "ffs_beg3_2018",
+                                                     "ffs_beg4_2018",
+                                                     "ffs_end1_2018",
+                                                     "ffs_end2_2018",
+                                                     "ffs_end3_2018",
+                                                     "ffs_end4_2018"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+
+
+monthsEnrolled <- numeric()
+for(i in 1:nrow(medata)){
+  x<-medata[i,]
+  df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T))
+  df$p <- paste0(substr(names(x)[seq(1,64,2)],1,3), "_", rep(1:4,8), "_", c(rep("2015",8),rep("2016",8),rep("2017",8),rep("2018",8)))
+  
+  mco_dat <- df[grep("mco",df$p),]
+  ffs_dat <- df[grep("ffs",df$p),]
+  
+  #case 1: no mco dates; only ffs
+  if(sum(is.na(mco_dat$X1))==16){
+    plan <- "ffs"
+    ffs_dat <- reduceDates(ffs_dat)
+    me <- floor(as.numeric(sum(as.Date(as.character(ffs_dat$X2))-as.Date(as.character(ffs_dat$X1)))+1)/30)
+  }
+  
+  #case 2: no ffs dates; only mco
+  if(sum(is.na(ffs_dat$X1))==16){
+    plan <- "mco"
+    mco_dat <- reduceDates(mco_dat)
+    me <- floor(as.numeric(sum(as.Date(as.character(mco_dat$X2))-as.Date(as.character(mco_dat$X1)))+1)/30)
+  }
+  
+  #case 3: both mco and ffs dates 
+  if( (sum(is.na(mco_dat$X1))!=16) & (sum(is.na(ffs_dat$X1))!=16) ){
+    plan <- "both"
+    mco_dat <- reduceDates(mco_dat)
+    ffs_dat <- reduceDates(ffs_dat)
+    
+    #iterate through the matched plan stratum to find overlap between mco and ffs to get months enrolled
+    uniqueIntervals <- unique(c(gsub("mco_","",mco_dat$p),gsub("ffs_","",ffs_dat$p)))
+    me_uniqueInts <- numeric()
+    for(j in 1:length(uniqueIntervals)){
+      int_mco <- c(as.Date(as.character(mco_dat$X1[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])),
+                   as.Date(as.character(mco_dat$X2[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])))
+      int_ffs <- c(as.Date(as.character(ffs_dat$X1[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])),
+                   as.Date(as.character(ffs_dat$X2[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])))
+      
+      #case 1:no mco dates among those plan dates
+      if(length(int_mco)==0){
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_ffs)/30 +1 )))
+      }
+      #case 2:no ffs dates among those plan dates
+      if(length(int_ffs)==0){
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_mco)/30 +1 )))
+      }
+      #case 3:both mco and ffs dates among the plan stratum
+      if(length(int_mco)!=0 & length(int_ffs)!=0){
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs) + diff(int_mco) - Overlap(int_mco,int_ffs))/30 +1 )))
+      }
+    }
+    me <- sum(me_uniqueInts)
+  }
+  monthsEnrolled[i]<-me
+} 
+
+summary(monthsEnrolled)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   2.00    9.00   13.00   14.26   18.00   62.00 
+
+ffs_mco_2015_2016_2017_2018$months_enrolled <- monthsEnrolled
+
+ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat)
+```
+
+
+<!--
 ##Overall
 
 ```{r}
@@ -2416,7 +2579,7 @@ dim(ffs_mco_2015_2016_2017_2018)
 #103153 
 #80680   161
 ```
-
+-->
 
 # Joining with planning districts
 
