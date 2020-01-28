@@ -54,12 +54,21 @@ eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spi
 dim(eligibility) 
 #103204    156
 #80680   164
+#103985    154
 ```
 
 # Joining dental claims with eligibility data
 
 ```{r}
-cols <- c("srecip", "Overall_Region", "HEALTH_PLANNING_DISTRICT", "HEALTH_PLANNING_REGION", "Overall_Citizen", "Overall_Race", "Overall_Age_at_earliest_enrollment", "months_enrolled", "Overall_R_FIPS")
+cols <- c("srecip", 
+          "Overall_Region", 
+          "HEALTH_PLANNING_DISTRICT", 
+          "HEALTH_PLANNING_REGION", 
+          "Overall_Citizen", 
+          "Overall_Race", 
+          "Overall_Age_at_earliest_enrollment", 
+          #"months_enrolled", 
+          "Overall_R_FIPS")
 
 claims <- left_join(claims, eligibility[,which(names(eligibility) %in% cols)], by = c("SRECIP" = "srecip"))
 
@@ -68,7 +77,7 @@ claims <- claims[which(claims$SRECIP %in% eligibility$srecip),]
 dim(claims) 
 #179518     47
 #165134     49
-
+#180982     48
 ```
 
 #creating variables
@@ -107,9 +116,12 @@ claims$Overall_Race[which(claims$Overall_Race=="Hispanic" |
 
 table(claims$Overall_Race)
 #Black Other White 
-#52365 16691 96078 
+#52365 16691 96078
+# Black  Other  White 
+# 57589  18477 104916 
 ```
 
+<!--
 ##categorizing months enrolled
 
 ```{r}
@@ -120,6 +132,7 @@ table(claims$months_enrolled_cat)
 #     102391       62743
 
 ```
+-->
 
 ##cdt category
 
@@ -161,10 +174,14 @@ claims$CDT_category <- factor(claims$CDT_category, levels=c("PREVENTIVE",
                                                             "OTHER"))
 
 table(claims$CDT_category)
-#                  PREVENTIVE                   DIAGNOSTIC                  RESTORATIVE                 PERIODONTICS 
-#                       10567                        55735                        62360                         9431 
-#                 ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER 
-#                        8170                        14328                         4543 
+#                  PREVENTIVE                   DIAGNOSTIC 
+#                       11611                        61396 
+#                 RESTORATIVE                 PERIODONTICS 
+#                       68135                        10299 
+#                 ENDODONTICS ORAL & MAXILLOFACIAL SURGERY 
+#                        8999                        15577 
+#                       OTHER 
+#                        4965 
 ```
 
 ##HPSA
@@ -196,11 +213,15 @@ table(claims$HPSA_status)
 #122992  56526 
 #    No    Yes 
 #112831  52303 
+#    No    Yes 
+#123871  57111 
 prop.table(table(claims$HPSA_status))
 #       No       Yes 
 #0.6851235 0.3148765 
 #       No       Yes 
 #0.6832693 0.3167307 
+#       No       Yes 
+#0.6844382 0.3155618 
 ```
 
 
@@ -215,6 +236,7 @@ claims_tooth <- claims[!is.na(claims$Tooth_Number),]
 dim(claims_tooth) 
 #118618     57
 #109159     57
+#119624     55
 table(claims_tooth$Tooth_Number, exclude = "ifany")
 
 claims_tooth <- claims_tooth[order(claims_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -225,7 +247,7 @@ claims_nodup_tooth <- claims_tooth[!(duplicated(claims_tooth[,c("CLAIM_NUMBER", 
 dim(claims_nodup_tooth) 
 #118616    57
 #109157     57
-
+#119622     55
 ```
 
 ## Claims with no tooth number
@@ -237,6 +259,7 @@ claims_no_tooth <- claims[is.na(claims$Tooth_Number),]
 dim(claims_no_tooth) 
 #60900    57
 #55975    57
+#61358    55
 table(claims_no_tooth$Tooth_Number, exclude = "ifany")
 
 claims_no_tooth <- claims_no_tooth[order(claims_no_tooth$CLAIM_NUMBER, decreasing = TRUE),]
@@ -247,7 +270,7 @@ claims_nodup_no_tooth <- claims_no_tooth[!(duplicated(claims_no_tooth[,c("CLAIM_
 dim(claims_nodup_no_tooth) 
 #60900    57
 #55975    57
-
+#61358    55
 ```
 
 ## Combining the two data sets
@@ -257,7 +280,7 @@ unique_claims <- rbind.data.frame(claims_nodup_no_tooth, claims_nodup_tooth)
 dim(unique_claims) 
 #179516     57
 #165132     57
-
+#180980     55
 ```
 
 # Saving the dataset

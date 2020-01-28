@@ -24,6 +24,7 @@ library(ggpubr)
 library(reshape2)
 library(sas7bdat)
 library(lubridate)
+library(DescTools)
 ```
 
 # Set working directory
@@ -1993,7 +1994,7 @@ table(ffs_mco_2015_2016_2017_2018$FY2018)
 #    0     1 
 #64566 39419 
 ```
-
+<!--
 #Calculating months enrolled
 
 ```{r}
@@ -2088,6 +2089,8 @@ medata <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015",
 
 
 monthsEnrolled <- numeric()
+planEnrolled <- character()
+nestedEnrolled <- character()
 for(i in 1:nrow(medata)){
   x<-medata[i,]
   df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T))
@@ -2099,6 +2102,7 @@ for(i in 1:nrow(medata)){
   #case 1: no mco dates; only ffs
   if(sum(is.na(mco_dat$X1))==16){
     plan <- "ffs"
+    nestedEnrolled[i] <- "none"
     ffs_dat <- reduceDates(ffs_dat)
     me <- floor(as.numeric(sum(as.Date(as.character(ffs_dat$X2))-as.Date(as.character(ffs_dat$X1)))+1)/30)
   }
@@ -2106,6 +2110,7 @@ for(i in 1:nrow(medata)){
   #case 2: no ffs dates; only mco
   if(sum(is.na(ffs_dat$X1))==16){
     plan <- "mco"
+    nestedEnrolled[i] <- "none"
     mco_dat <- reduceDates(mco_dat)
     me <- floor(as.numeric(sum(as.Date(as.character(mco_dat$X2))-as.Date(as.character(mco_dat$X1)))+1)/30)
   }
@@ -2119,44 +2124,71 @@ for(i in 1:nrow(medata)){
     #iterate through the matched plan stratum to find overlap between mco and ffs to get months enrolled
     uniqueIntervals <- unique(c(gsub("mco_","",mco_dat$p),gsub("ffs_","",ffs_dat$p)))
     me_uniqueInts <- numeric()
+    nestingTypes <- character()
     for(j in 1:length(uniqueIntervals)){
       int_mco <- c(as.Date(as.character(mco_dat$X1[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])),
                    as.Date(as.character(mco_dat$X2[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])))
       int_ffs <- c(as.Date(as.character(ffs_dat$X1[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])),
                    as.Date(as.character(ffs_dat$X2[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])))
       
+      nestingTypes[j] <- ifelse((int_mco[1] <= int_ffs[1] & int_mco[2] <= int_ffs[2]), "mco in ffs", "ffs in mco")
+      
       #case 1:no mco dates among those plan dates
       if(length(int_mco)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_ffs)/30 +1 )))
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs)+1)/30)))
       }
       #case 2:no ffs dates among those plan dates
       if(length(int_ffs)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_mco)/30 +1 )))
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_mco)+1)/30)))
       }
       #case 3:both mco and ffs dates among the plan stratum
       if(length(int_mco)!=0 & length(int_ffs)!=0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs) + diff(int_mco) - Overlap(int_mco,int_ffs))/30 +1 )))
+        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs) + diff(int_mco) - Overlap(int_mco,int_ffs)+1)/30)))
       }
     }
     me <- sum(me_uniqueInts)
+    nestingTypes <- unique(as.character(na.omit(nestingTypes)))
+    if(length(nestingTypes)==1){
+      nestedEnrolled[i] <- nestingTypes
+    }else{nestedEnrolled[i] <- "mco in ffs AND ffs in mco"}
   }
   monthsEnrolled[i]<-me
-} 
+  planEnrolled[i] <- plan
+}
 
 summary(monthsEnrolled)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   2.00    9.00   13.00   14.26   18.00   62.00 
+#  2.967   8.100  12.167  13.094  17.167  57.533 
+
+length(which(monthsEnrolled<3))
+#6
 
 ffs_mco_2015_2016_2017_2018$months_enrolled <- monthsEnrolled
+ffs_mco_2015_2016_2017_2018$planEnrolled <- planEnrolled
+table(ffs_mco_2015_2016_2017_2018$planEnrolled, exclude = "ifelse")
+# both   ffs   mco 
+#81196 22661   128 
+ffs_mco_2015_2016_2017_2018$nestedEnrolled <- nestedEnrolled
+table(ffs_mco_2015_2016_2017_2018$nestedEnrolled, exclude = "ifany")
+#               ffs in mco                mco in ffs mco in ffs AND ffs in mco                      none 
+#                    35435                     29549                     16212                     22789 
 
+table(ffs_mco_2015_2016_2017_2018$planEnrolled,ffs_mco_2015_2016_2017_2018$nestedEnrolled, exclude = "ifany")
+#       ffs in mco mco in ffs mco in ffs AND ffs in mco  none
+#  both      35435      29549                     16212     0
+#  ffs           0          0                         0 22661
+#  mco           0          0                         0   128
+  
 ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
                                           ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
                                                  ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
                                                         ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
 ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat)
+table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
+#         6      12413      15456      20621      55489
 ```
-
+-->
 
 <!--
 ##Overall
@@ -2701,6 +2733,7 @@ ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT <- factor(ffs_mco_2015_2016
 dim(ffs_mco_2015_2016_2017_2018)
 #103204    158
 #80680   164
+#103985    154
 ```
 
 

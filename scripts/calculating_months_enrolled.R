@@ -7,199 +7,545 @@ library(sas7bdat)
 library(lubridate)
 library(DescTools)
 
-eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018_full.rds")
-
-dim(eligibility) 
-#103985    151
-
-length(unique(eligibility$srecip)) 
-#103985
-
-eligibility <- eligibility[order(eligibility$srecip),]
-
-medata <- eligibility[,grep(paste0(c("mco_beg1_2015",
-                                                     "mco_beg2_2015",
-                                                     "mco_beg3_2015",
-                                                     "mco_beg4_2015",
-                                                     "mco_end1_2015",
-                                                     "mco_end2_2015",
-                                                     "mco_end3_2015",
-                                                     "mco_end4_2015",
-                                                     
-                                                     "mco_beg1_2016",
-                                                     "mco_beg2_2016",
-                                                     "mco_beg3_2016",
-                                                     "mco_beg4_2016",
-                                                     "mco_end1_2016",
-                                                     "mco_end2_2016",
-                                                     "mco_end3_2016",
-                                                     "mco_end4_2016",
-                                                     
-                                                     "mco_beg1_2017",
-                                                     "mco_beg2_2017",
-                                                     "mco_beg3_2017",
-                                                     "mco_beg4_2017",
-                                                     "mco_end1_2017",
-                                                     "mco_end2_2017",
-                                                     "mco_end3_2017",
-                                                     "mco_end4_2017",
-                                                     
-                                                     "mco_beg1_2018",
-                                                     "mco_beg2_2018",
-                                                     "mco_beg3_2018",
-                                                     "mco_beg4_2018",
-                                                     "mco_end1_2018",
-                                                     "mco_end2_2018",
-                                                     "mco_end3_2018",
-                                                     "mco_end4_2018",
-                                                     
-                                                     "ffs_beg1_2015",
-                                                     "ffs_beg2_2015",
-                                                     "ffs_beg3_2015",
-                                                     "ffs_beg4_2015",
-                                                     "ffs_end1_2015",
-                                                     "ffs_end2_2015",
-                                                     "ffs_end3_2015",
-                                                     "ffs_end4_2015",
-                                                     
-                                                     "ffs_beg1_2016",
-                                                     "ffs_beg2_2016",
-                                                     "ffs_beg3_2016",
-                                                     "ffs_beg4_2016",
-                                                     "ffs_end1_2016",
-                                                     "ffs_end2_2016",
-                                                     "ffs_end3_2016",
-                                                     "ffs_end4_2016",
-                                                     
-                                                     "ffs_beg1_2017",
-                                                     "ffs_beg2_2017",
-                                                     "ffs_beg3_2017",
-                                                     "ffs_beg4_2017",
-                                                     "ffs_end1_2017",
-                                                     "ffs_end2_2017",
-                                                     "ffs_end3_2017",
-                                                     "ffs_end4_2017",
-                                                     
-                                                     "ffs_beg1_2018",
-                                                     "ffs_beg2_2018",
-                                                     "ffs_beg3_2018",
-                                                     "ffs_beg4_2018",
-                                                     "ffs_end1_2018",
-                                                     "ffs_end2_2018",
-                                                     "ffs_end3_2018",
-                                                     "ffs_end4_2018"
-), collapse = "|"), names(eligibility))]
-
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 16,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  df7 <- df6 %>%
-    arrange(X1) %>% 
-    mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-                                  cummax(as.numeric(X2)))[-n()])) %>%
-    summarise(start = first(X1), end = last(X2))
-  me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  #me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
-}
+ffs_mco_2015_2016_2017_2018 <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/ffs_mco_2015_2016_2017_2018_full.rds")
 
 
+# 2015
 
+medata_2015 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2015",
+                                                          "mco_beg2_2015",
+                                                          "mco_beg3_2015",
+                                                          "mco_beg4_2015",
+                                                          "mco_end1_2015",
+                                                          "mco_end2_2015",
+                                                          "mco_end3_2015",
+                                                          "mco_end4_2015",
+                                                          
+                                                          "ffs_beg1_2015",
+                                                          "ffs_beg2_2015",
+                                                          "ffs_beg3_2015",
+                                                          #"ffs_beg4_2015",
+                                                          "ffs_end1_2015",
+                                                          "ffs_end2_2015",
+                                                          "ffs_end3_2015"#,
+                                                          #"ffs_end4_2015"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
-x <- medata[8,];
-df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T));
-df$p <- paste0(substr(names(x)[seq(1,64,2)],1,3), "_", rep(1:4,8), "_", c(rep("2015",8),rep("2016",8),rep("2017",8),rep("2018",8)));
-df
+medata_2015_list <- list(medata_2015[,1:9],medata_2015[,c(1,10:15)])
 
-myfunc <- function(data){
-  data <- data[order(data[,1], decreasing = FALSE),]
-  data <- data[order(data[,2], decreasing = TRUE),]
-  data <- data[!duplicated(data[,1]),]
-  data <- data[!duplicated(data[,2]),]
-  data <- na.omit(data)
-  return(data)
-}
+medata_2015_list[[2]]$ffs_beg4_2015 <- medata_2015_list[[2]]$ffs_end4_2015 <- as.Date(NA)
 
-myfunc(df[grep("mco",df$p),])
-myfunc(df[grep("ffs",df$p),])
+names(medata_2015_list[[1]])[-1] <- gsub("mco_","",names(medata_2015_list[[1]])[-1])
+names(medata_2015_list[[2]])[-1] <- gsub("ffs_","",names(medata_2015_list[[2]])[-1])
 
-###########################################
+medata_2015_2 <- rbind.data.frame(medata_2015_list[[1]],medata_2015_list[[2]])
 
-reduceDates <- function(mydata){
-  mydata <- mydata[order(mydata[,2], decreasing = TRUE),]
-  mydata <- mydata[order(mydata[,1], decreasing = FALSE),]
-  mydata <- mydata[!duplicated(mydata[,1]),]
-  mydata <- mydata[!duplicated(mydata[,2]),]
-  mydata <- na.omit(mydata)
-  mydata$lagDate <- c(as.character(mydata[-1,1]),NA)
-  mydata$diffDays <- as.vector(as.Date(mydata$lagDate)-as.Date(mydata[,2]))
-  return(mydata)
-}
+medata_2015_3 <- medata_2015_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2015)
+medata_2015_3 <- as.data.frame(medata_2015_3)
 
-#there are no instances where there are overlaps between dates within the same plan 
+#apply(medata_2015_3,2,function(x)table(is.na(x)))
 
-#monthsEnrolled <- function(x){
-monthsEnrolled <- numeric()
-for(i in 1:nrow(medata)){
-  x<-medata[i,]
-  df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T))
-  df$p <- paste0(substr(names(x)[seq(1,64,2)],1,3), "_", rep(1:4,8), "_", c(rep("2015",8),rep("2016",8),rep("2017",8),rep("2018",8)))
+ids <- sort(medata_2015_3$srecip[seq(1,length(medata_2015_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
   
-  mco_dat <- df[grep("mco",df$p),]
-  ffs_dat <- df[grep("ffs",df$p),]
+  srecipData <- medata_2015_3[which(medata_2015_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
   
-  #case 1: no mco dates; only ffs
-  if(sum(is.na(mco_dat$X1))==16){
-    plan <- "ffs"
-    ffs_dat <- reduceDates(ffs_dat)
-    me <- floor(as.numeric(sum(as.Date(as.character(ffs_dat$X2))-as.Date(as.character(ffs_dat$X1)))+1)/30)
-  }
-  
-  #case 2: no ffs dates; only mco
-  if(sum(is.na(ffs_dat$X1))==16){
-    plan <- "mco"
-    mco_dat <- reduceDates(mco_dat)
-    me <- floor(as.numeric(sum(as.Date(as.character(mco_dat$X2))-as.Date(as.character(mco_dat$X1)))+1)/30)
-  }
-  
-  #case 3: both mco and ffs dates 
-  if( (sum(is.na(mco_dat$X1))!=16) & (sum(is.na(ffs_dat$X1))!=16) ){
-    plan <- "both"
-    mco_dat <- reduceDates(mco_dat)
-    ffs_dat <- reduceDates(ffs_dat)
-    
-    #iterate through the matched plan stratum to find overlap between mco and ffs to get months enrolled
-    uniqueIntervals <- unique(c(gsub("mco_","",mco_dat$p),gsub("ffs_","",ffs_dat$p)))
-    me_uniqueInts <- numeric()
-    for(j in 1:length(uniqueIntervals)){
-      int_mco <- c(as.Date(as.character(mco_dat$X1[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])),
-                   as.Date(as.character(mco_dat$X2[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])))
-      int_ffs <- c(as.Date(as.character(ffs_dat$X1[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])),
-                   as.Date(as.character(ffs_dat$X2[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])))
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
       
-      #case 1:no mco dates among those plan dates
-      if(length(int_mco)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_ffs)/30 +1 )))
-      }
-      #case 2:no ffs dates among those plan dates
-      if(length(int_ffs)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor(diff(int_mco)/30 +1 )))
-      }
-      #case 3:both mco and ffs dates among the plan stratum
-      if(length(int_mco)!=0 & length(int_ffs)!=0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs) + diff(int_mco) - Overlap(int_mco,int_ffs))/30 +1 )))
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
       }
     }
-    me <- sum(me_uniqueInts)
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
   }
-  monthsEnrolled[i]<-me
-} 
-#}
+  
+  
+}
+me_2015 <- me
+summary(me_2015)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.000   0.000   0.000   2.590   4.932  12.000 
 
+# 2016
+medata_2016 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2016",
+                                                          "mco_beg2_2016",
+                                                          "mco_beg3_2016",
+                                                          "mco_beg4_2016",
+                                                          "mco_end1_2016",
+                                                          "mco_end2_2016",
+                                                          "mco_end3_2016",
+                                                          "mco_end4_2016",
+                                                          
+                                                          "ffs_beg1_2016",
+                                                          "ffs_beg2_2016",
+                                                          "ffs_beg3_2016",
+                                                          #"ffs_beg4_2016",
+                                                          "ffs_end1_2016",
+                                                          "ffs_end2_2016",
+                                                          "ffs_end3_2016"#,
+                                                          #"ffs_end4_2016"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
+medata_2016_list <- list(medata_2016[,1:9],medata_2016[,c(1,10:15)])
 
+medata_2016_list[[2]]$ffs_beg4_2016 <- medata_2016_list[[2]]$ffs_end4_2016 <- as.Date(NA)
+
+names(medata_2016_list[[1]])[-1] <- gsub("mco_","",names(medata_2016_list[[1]])[-1])
+names(medata_2016_list[[2]])[-1] <- gsub("ffs_","",names(medata_2016_list[[2]])[-1])
+
+medata_2016_2 <- rbind.data.frame(medata_2016_list[[1]],medata_2016_list[[2]])
+
+medata_2016_3 <- medata_2016_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2016)
+medata_2016_3 <- as.data.frame(medata_2016_3)
+
+#apply(medata_2016_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2016_3$srecip[seq(1,length(medata_2016_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2016_3[which(medata_2016_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
+}
+me_2016 <- me
+summary(me_2016)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.000   0.000   0.000   3.114   6.970  12.000 
+
+# 2017
+medata_2017 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2017",
+                                                          "mco_beg2_2017",
+                                                          "mco_beg3_2017",
+                                                          "mco_beg4_2017",
+                                                          "mco_end1_2017",
+                                                          "mco_end2_2017",
+                                                          "mco_end3_2017",
+                                                          "mco_end4_2017",
+                                                          
+                                                          "ffs_beg1_2017",
+                                                          "ffs_beg2_2017",
+                                                          "ffs_beg3_2017",
+                                                          #"ffs_beg4_2017",
+                                                          "ffs_end1_2017",
+                                                          "ffs_end2_2017",
+                                                          "ffs_end3_2017"#,
+                                                          #"ffs_end4_2017"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+
+medata_2017_list <- list(medata_2017[,1:9],medata_2017[,c(1,10:15)])
+
+medata_2017_list[[2]]$ffs_beg4_2017 <- medata_2017_list[[2]]$ffs_end4_2017 <- as.Date(NA)
+
+names(medata_2017_list[[1]])[-1] <- gsub("mco_","",names(medata_2017_list[[1]])[-1])
+names(medata_2017_list[[2]])[-1] <- gsub("ffs_","",names(medata_2017_list[[2]])[-1])
+
+medata_2017_2 <- rbind.data.frame(medata_2017_list[[1]],medata_2017_list[[2]])
+
+medata_2017_3 <- medata_2017_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2017)
+medata_2017_3 <- as.data.frame(medata_2017_3)
+
+#apply(medata_2017_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2017_3$srecip[seq(1,length(medata_2017_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2017_3[which(medata_2017_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
+}
+me_2017 <- me
+summary(me_2017)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.000   0.000   0.000   3.232   6.937  12.000 
+
+# 2018
+medata_2018 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2018",
+                                                          "mco_beg2_2018",
+                                                          "mco_beg3_2018",
+                                                          "mco_beg4_2018",
+                                                          "mco_end1_2018",
+                                                          "mco_end2_2018",
+                                                          "mco_end3_2018",
+                                                          "mco_end4_2018",
+                                                          
+                                                          "ffs_beg1_2018",
+                                                          "ffs_beg2_2018",
+                                                          "ffs_beg3_2018",
+                                                          #"ffs_beg4_2018",
+                                                          "ffs_end1_2018",
+                                                          "ffs_end2_2018",
+                                                          "ffs_end3_2018"#,
+                                                          #"ffs_end4_2018"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+
+medata_2018_list <- list(medata_2018[,1:9],medata_2018[,c(1,10:15)])
+
+medata_2018_list[[2]]$ffs_beg4_2018 <- medata_2018_list[[2]]$ffs_end4_2018 <- as.Date(NA)
+
+names(medata_2018_list[[1]])[-1] <- gsub("mco_","",names(medata_2018_list[[1]])[-1])
+names(medata_2018_list[[2]])[-1] <- gsub("ffs_","",names(medata_2018_list[[2]])[-1])
+
+medata_2018_2 <- rbind.data.frame(medata_2018_list[[1]],medata_2018_list[[2]])
+
+medata_2018_3 <- medata_2018_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2018)
+medata_2018_3 <- as.data.frame(medata_2018_3)
+
+#apply(medata_2018_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2018_3$srecip[seq(1,length(medata_2018_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2018_3[which(medata_2018_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
+}
+me_2018 <- me
+summary(me_2018)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.000   0.000   0.000   3.462   7.923  12.000 
+
+#overall
+me_overall <- rowSums(cbind(me_2015,me_2016,me_2017,me_2018))
+summary(me_overall)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#2.893   7.956  11.967  12.397  15.912  48.000 
 
