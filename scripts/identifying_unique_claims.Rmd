@@ -54,7 +54,7 @@ eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spi
 dim(eligibility) 
 #103204    156
 #80680   164
-#103985    154
+#103985    164
 ```
 
 # Joining dental claims with eligibility data

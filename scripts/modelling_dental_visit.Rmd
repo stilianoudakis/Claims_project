@@ -49,9 +49,11 @@ eligibility <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/Spi
 dim(eligibility) 
 #103204    164
 #80680   164
+#103985    164
 length(unique(eligibility$srecip)) 
 #103204
 #80680
+#103985
 
 eligibility <- eligibility[order(eligibility$srecip),]
 ```
@@ -72,6 +74,7 @@ unique_claims <- readRDS("X:/CommonPrograms/Oral Health Services Research Core/S
 dim(unique_claims)
 #179516     57
 #165132     57
+#180980     55
 
 unique_claims <- unique_claims %>%
   mutate(SERVICE_DATE2 = mdy(unique_claims$SERVICE_DATE)) %>%
@@ -84,12 +87,12 @@ unique_claims <- unique_claims %>%
 mydata <- eligibility
 
 #DOEE <- apply(mydata[,grep(paste0(c("ffs_beg","mco_beg"),collapse = "|"), names(mydata))],1,function(x){min(na.omit(x))})
-DOEE <- apply(mydata[,grep(paste0("mco_beg",collapse = "|"), names(mydata))],1,function(x){min(na.omit(x))})
+DOEE <- apply(mydata[,grep(paste0(c("mco_beg","ffs_beg"),collapse = "|"), names(mydata))],1,function(x){min(na.omit(x))})
 mydata$policymaturation.E <- floor(as.numeric((as.Date(DOEE)-as.Date("2015-03-01"))/30))
 mydata$policymaturation.E[which(mydata$policymaturation.E<0)] <- 0
 summary(mydata$policymaturation.E)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   0.00    0.00   11.00   13.32   24.00   37.00 
+#   0.00    0.00    9.00   12.11   22.00   37.00 
 
 d2 <- mydata[which(mydata$srecip %in% unique_claims$SRECIP),]
 DOEV <- unique_claims %>%
@@ -105,7 +108,7 @@ mydata$policymaturation.DV[which(mydata$srecip %in% d2$srecip)] <- d2$policymatu
 mydata$policymaturation.DV[is.na(mydata$policymaturation.DV)] <- 0
 summary(mydata$policymaturation.DV)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   0.000   0.000   3.743   0.000  40.000 
+#  0.000   0.000   0.000   3.266   0.000  40.000 
 
 
 #d1 <- eligibility[-which(eligibility$srecip %in% unique_claims$SRECIP),]
@@ -138,12 +141,16 @@ table(mydata$dental_visit)
 #86313 16891 
 #   No   Yes 
 #65341 15339 
+#   No   Yes 
+#86982 17003 
 
 prop.table(table(mydata$dental_visit))
 #       No       Yes 
 #0.8363339 0.1636661 
 #       No       Yes 
 #0.8098785 0.1901215 
+#      No      Yes 
+#0.836486 0.163514 
 ```
 
 # Keeping only necessary variables from eligibility
@@ -157,16 +164,16 @@ vars <- c("srecip",
           "Overall_R_FIPS",
           "HEALTH_PLANNING_DISTRICT",
           "HEALTH_PLANNING_REGION",
-          "months_enrolled",
-          "months_enrolled_cat",
-          "months_enrolled_2015",
-          #"months_enrolled_2015_cat",
-          "months_enrolled_2016",
-          #"months_enrolled_2016_cat",
-          "months_enrolled_2017",
-          #"months_enrolled_2017_cat",
-          "months_enrolled_2018",
-          #"months_enrolled_2018_cat",
+          "me_2015",
+          "me_2015_cat",
+          "me_2016",
+          "me_2016_cat",
+          "me_2017",
+          "me_2017_cat",
+          "me_2018",
+          "me_2018_cat",
+          "me_overall",
+          "me_overall_cat",
           "FY2015",
           "FY2016",
           "FY2017",
@@ -178,6 +185,7 @@ mydata <- mydata[, which(names(mydata) %in% vars)]
 dim(mydata) 
 #103204     20
 #80680    21
+#103985     25
 
 ```
 
@@ -220,6 +228,7 @@ mydata <- left_join(mydata, patient_level[, c("SRECIP",
 dim(mydata)
 #103204   31
 #80680    32
+#103985     36
 
 ```
 
@@ -252,11 +261,15 @@ table(mydata$HPSA_status)
 #63909 39295
 #   No   Yes 
 #50181 30499 
+#   No   Yes 
+#64437 39548 
 prop.table(table(mydata$HPSA_status))
 #       No       Yes 
 #0.6192493 0.3807507 
 #       No       Yes 
 #0.6219757 0.3780243 
+#       No       Yes 
+#0.6196759 0.3803241 
 ```
 
 
@@ -272,6 +285,8 @@ table(mydata$Age_category)
 #   71477    31727 
 #under 30  over 30 
 #   56313    24367 
+#under 30  over 30 
+#   71987    31998 
 
 #race
 mydata$Overall_Race[which(mydata$Overall_Race=="Hispanic" |
@@ -283,49 +298,54 @@ table(mydata$Overall_Race)
 #56672 38727  7805 
 #White Black Other 
 #43754 31016  5910 
+#White Black Other 
+#57137 38945  7903 
 
 #citizenship
 mydata <- mydata[-which(mydata$Overall_Citizen=="Missing"),]
 dim(mydata) 
 #103200     33
 #80678    34
+#103981     38
 mydata$Overall_Citizen <- factor(mydata$Overall_Citizen, levels=c("US (or naturalized) citizen", "Non-US citizen"))
 table(mydata$Overall_Citizen)
 #US (or naturalized) citizen              Non-US citizen 
 #                      92038                       11162 
 #US (or naturalized) citizen              Non-US citizen 
 #                      72617                        8061 
+#US (or naturalized) citizen              Non-US citizen 
+#                      92574                       11407 
 
 #months enrolled
-mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_cat, exclude = "ifany")
+#mydata$months_enrolled_cat <- ifelse(mydata$months_enrolled <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_cat <- factor(mydata$months_enrolled_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_cat, exclude = "ifany")
 #3-10 months  >10 months 
 #      42077       61123
 #3-10 months  >10 months 
 #      57798       22880 
-
-mydata$months_enrolled_2015_cat <- ifelse(mydata$months_enrolled_2015 <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_2015_cat <- factor(mydata$months_enrolled_2015_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_2015_cat, exclude = "ifany")
+#
+#mydata$months_enrolled_2015_cat <- ifelse(mydata$months_enrolled_2015 <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_2015_cat <- factor(mydata$months_enrolled_2015_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_2015_cat, exclude = "ifany")
 #3-10 months  >10 months        <NA> 
 #      25693        1980       53005 
-
-mydata$months_enrolled_2016_cat <- ifelse(mydata$months_enrolled_2016 <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_2016_cat <- factor(mydata$months_enrolled_2016_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_2016_cat, exclude = "ifany")
+#
+#mydata$months_enrolled_2016_cat <- ifelse(mydata$months_enrolled_2016 <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_2016_cat <- factor(mydata$months_enrolled_2016_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_2016_cat, exclude = "ifany")
 #3-10 months  >10 months        <NA> 
 #      28392        3381       48905
-
-mydata$months_enrolled_2017_cat <- ifelse(mydata$months_enrolled_2017 <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_2017_cat <- factor(mydata$months_enrolled_2017_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_2017_cat, exclude = "ifany")
+#
+#mydata$months_enrolled_2017_cat <- ifelse(mydata$months_enrolled_2017 <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_2017_cat <- factor(mydata$months_enrolled_2017_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_2017_cat, exclude = "ifany")
 #3-10 months  >10 months        <NA> 
 #      27393        4683       48602 
-
-mydata$months_enrolled_2018_cat <- ifelse(mydata$months_enrolled_2018 <= 10, "3-10 months", ">10 months")
-mydata$months_enrolled_2018_cat <- factor(mydata$months_enrolled_2018_cat, levels=c("3-10 months", ">10 months"))
-table(mydata$months_enrolled_2018_cat, exclude = "ifany")
+#
+#mydata$months_enrolled_2018_cat <- ifelse(mydata$months_enrolled_2018 <= 10, "3-10 months", ">10 months")
+#mydata$months_enrolled_2018_cat <- factor(mydata$months_enrolled_2018_cat, levels=c("3-10 months", ">10 months"))
+#table(mydata$months_enrolled_2018_cat, exclude = "ifany")
 #3-10 months  >10 months        <NA> 
 #      23555        6483       50640 
 
@@ -338,24 +358,32 @@ mydata$FY2015 <- factor(ifelse(mydata$FY2015==1, "Yes", "No"))
 table(mydata$FY2015)
 #   No   Yes 
 #53005 27673 
+#   No   Yes 
+#70000 33981 
 
 ##2016
 mydata$FY2016 <- factor(ifelse(mydata$FY2016==1, "Yes", "No"))
 table(mydata$FY2016)
 #   No   Yes 
 #48905 31773 
+#   No   Yes 
+#66128 37853 
 
 ##2017
 mydata$FY2017 <- factor(ifelse(mydata$FY2017==1, "Yes", "No"))
 table(mydata$FY2017)
 #   No   Yes 
 #48602 32076 
+#   No   Yes 
+#65543 38438 
 
 ##2018
 mydata$FY2018 <- factor(ifelse(mydata$FY2018==1, "Yes", "No"))
 table(mydata$FY2018)
 #   No   Yes 
 #50640 30038 
+#   No   Yes 
+#64562 39419 
 
 mydata_final <- mydata
 
@@ -403,11 +431,11 @@ eligibility_table <- cbind.data.frame(
                "HPSA Status (%)",
                "No",
                "Yes",
-               "Months Enrolled (SD)",
-               "Months Enrolled Categorized (%)",
-               "3-10 months",
-               "> 10 months",
-               "Policy Maturation in months (SD)",
+               #"Months Enrolled (SD)",
+               #"Months Enrolled Categorized (%)",
+               #"3-10 months",
+               #"> 10 months",
+               #"Policy Maturation in months (SD)",
                "Citizenship (%)",
                "Non-US citizen",
                "US (or naturalized) citizen",
@@ -432,11 +460,11 @@ eligibility_table <- cbind.data.frame(
              "",
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No"),])/nrow(mydata_final)*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes"),])/nrow(mydata_final)*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled),1), " ", "(", round(sd(mydata_final$months_enrolled),1),"%" ,")"),
-             "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months"),])/nrow(mydata_final)*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months"),])/nrow(mydata_final)*100,1),"%" ,")"),
-            paste0(round(mean(mydata_final$policymaturation),1), " ", "(", round(sd(mydata_final$policymaturation),1),"%" ,")"),
+             #paste0(round(mean(mydata_final$months_enrolled),1), " ", "(", round(sd(mydata_final$months_enrolled),1),"%" ,")"),
+             #"",
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months"),])/nrow(mydata_final)*100,1),"%" ,")"),
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months"),])/nrow(mydata_final)*100,1),"%" ,")"),
+             #paste0(round(mean(mydata_final$policymaturation),1), " ", "(", round(sd(mydata_final$policymaturation),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen"),])/nrow(mydata_final)*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen"),])/nrow(mydata_final)*100,1),"%" ,")"),
@@ -461,11 +489,11 @@ eligibility_table <- cbind.data.frame(
              "",
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes")]),1),"%" ,")"),
-             "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2015=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2015=="Yes")]),1),"%" ,")"),
+             #paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2015=="Yes")]),1),"%" ,")"),
+             #"",
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
+             #paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2015=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2015=="Yes")]),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2015=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2015=="Yes"),])*100,1),"%" ,")"),
@@ -490,11 +518,11 @@ eligibility_table <- cbind.data.frame(
              "",
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2016=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2016=="Yes")]),1),"%" ,")"),
-             "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2016=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2016=="Yes")]),1),"%" ,")"),
+             #paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2016=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2016=="Yes")]),1),"%" ,")"),
+             #"",
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
+             #paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2016=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2016=="Yes")]),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2016=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2016=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2016=="Yes"),])*100,1),"%" ,")"),
@@ -519,11 +547,11 @@ eligibility_table <- cbind.data.frame(
              "",
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2017=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2017=="Yes")]),1),"%" ,")"),
-             "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2017=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2017=="Yes")]),1),"%" ,")"),
+             #paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2017=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2017=="Yes")]),1),"%" ,")"),
+             #"",
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
+             #paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2017=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2017=="Yes")]),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2017=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2017=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2017=="Yes"),])*100,1),"%" ,")"),
@@ -548,11 +576,11 @@ eligibility_table <- cbind.data.frame(
              "",
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="No" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$HPSA_status=="Yes" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2018=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2018=="Yes")]),1),"%" ,")"),
-             "",
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
-             paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
-             paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2018=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2018=="Yes")]),1),"%" ,")"),
+             #paste0(round(mean(mydata_final$months_enrolled[which(mydata_final$FY2018=="Yes")]),1), " ", "(", round(sd(mydata_final$months_enrolled[which(mydata_final$FY2018=="Yes")]),1),"%" ,")"),
+             #"",
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat=="3-10 months" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
+             #paste0(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$months_enrolled_cat==">10 months" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
+             #paste0(round(mean(mydata_final$policymaturation[which(mydata_final$FY2018=="Yes")]),1), " ", "(", round(sd(mydata_final$policymaturation[which(mydata_final$FY2018=="Yes")]),1),"%" ,")"),
              "",
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="Non-US citizen" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
              paste0(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2018=="Yes"),]), " ", "(", round(nrow(mydata_final[which(mydata_final$Overall_Citizen=="US (or naturalized) citizen" & mydata_final$FY2018=="Yes"),])/nrow(mydata_final[which(mydata_final$FY2018=="Yes"),])*100,1),"%" ,")"),
@@ -895,16 +923,16 @@ names(services_table) <- c("Variable",
 #- Overall_Region   5    91625 91643
 #no variables were removed
 
-fydat <- mydata_final[,c(6:9)]
-for(i in 1:ncol(fydat)){
-  year <- as.numeric(gsub("FY", "", names(fydat)[i]))
-  fydat[,i] <- ifelse(fydat[,i]=="Yes", year, 9999)
-}
-mydata_final$eligibilityFY <- apply(fydat,1,min)
-mydata_final$eligibilityFY <- factor(as.character(mydata_final$eligibilityFY), levels=c("2015","2016","2017","2018"))
-table(mydata_final$eligibilityFY)
+#fydat <- mydata_final[,c(6:9)]
+#for(i in 1:ncol(fydat)){
+#  year <- as.numeric(gsub("FY", "", names(fydat)[i]))
+#  fydat[,i] <- ifelse(fydat[,i]=="Yes", year, 9999)
+#}
+#mydata_final$eligibilityFY <- apply(fydat,1,min)
+#mydata_final$eligibilityFY <- factor(as.character(mydata_final$eligibilityFY), levels=c("2015","2016","2017","2018"))
+#table(mydata_final$eligibilityFY)
 
-model1 <- glm(dental_visit ~ months_enrolled +
+model1 <- glm(dental_visit ~ me_overall +
                              policymaturation.E +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
@@ -1146,7 +1174,7 @@ mydata_final2$Preventive <- factor(ifelse(mydata_final2$Preventive==1, "Yes", "N
 #mydata_final2$FY2017_claims <- factor(ifelse(mydata_final2$FY2017_claims==1,"Yes","No"))
 #mydata_final2$FY2018_claims <- factor(ifelse(mydata_final2$FY2018_claims==1,"Yes","No"))
 
-model2 <- glm(Preventive ~ months_enrolled +
+model2 <- glm(Preventive ~ me_overall +
                              policymaturation.DV +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 
@@ -1169,7 +1197,7 @@ round(exp(cbind(coef(model2), confint(model2))) ,3)
 ```{r}
 mydata_final2$Treatment <- factor(ifelse(mydata_final2$Preventive=="Yes" & mydata_final2$Diagnostic==1, "No", "Yes"))
 
-model3 <- glm(Treatment ~ months_enrolled +
+model3 <- glm(Treatment ~ me_overall +
                              policymaturation.DV +
                              HPSA_status + 
                              Overall_Age_at_earliest_enrollment + 

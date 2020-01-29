@@ -1994,624 +1994,612 @@ table(ffs_mco_2015_2016_2017_2018$FY2018)
 #    0     1 
 #64566 39419 
 ```
-<!--
-#Calculating months enrolled
 
-```{r}
-reduceDates <- function(mydata){
-  mydata <- mydata[order(mydata[,2], decreasing = TRUE),]
-  mydata <- mydata[order(mydata[,1], decreasing = FALSE),]
-  mydata <- mydata[!duplicated(mydata[,1]),]
-  mydata <- mydata[!duplicated(mydata[,2]),]
-  mydata <- na.omit(mydata)
-  mydata$lagDate <- c(as.character(mydata[-1,1]),NA)
-  mydata$diffDays <- as.vector(as.Date(mydata$lagDate)-as.Date(mydata[,2]))
-  return(mydata)
-}
-
-```
-
-##Overall
-
-```{r}
-medata <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015",
-                                                     "mco_beg2_2015",
-                                                     "mco_beg3_2015",
-                                                     "mco_beg4_2015",
-                                                     "mco_end1_2015",
-                                                     "mco_end2_2015",
-                                                     "mco_end3_2015",
-                                                     "mco_end4_2015",
-                                                     
-                                                     "mco_beg1_2016",
-                                                     "mco_beg2_2016",
-                                                     "mco_beg3_2016",
-                                                     "mco_beg4_2016",
-                                                     "mco_end1_2016",
-                                                     "mco_end2_2016",
-                                                     "mco_end3_2016",
-                                                     "mco_end4_2016",
-                                                     
-                                                     "mco_beg1_2017",
-                                                     "mco_beg2_2017",
-                                                     "mco_beg3_2017",
-                                                     "mco_beg4_2017",
-                                                     "mco_end1_2017",
-                                                     "mco_end2_2017",
-                                                     "mco_end3_2017",
-                                                     "mco_end4_2017",
-                                                     
-                                                     "mco_beg1_2018",
-                                                     "mco_beg2_2018",
-                                                     "mco_beg3_2018",
-                                                     "mco_beg4_2018",
-                                                     "mco_end1_2018",
-                                                     "mco_end2_2018",
-                                                     "mco_end3_2018",
-                                                     "mco_end4_2018",
-                                                     
-                                                     "ffs_beg1_2015",
-                                                     "ffs_beg2_2015",
-                                                     "ffs_beg3_2015",
-                                                     "ffs_beg4_2015",
-                                                     "ffs_end1_2015",
-                                                     "ffs_end2_2015",
-                                                     "ffs_end3_2015",
-                                                     "ffs_end4_2015",
-                                                     
-                                                     "ffs_beg1_2016",
-                                                     "ffs_beg2_2016",
-                                                     "ffs_beg3_2016",
-                                                     "ffs_beg4_2016",
-                                                     "ffs_end1_2016",
-                                                     "ffs_end2_2016",
-                                                     "ffs_end3_2016",
-                                                     "ffs_end4_2016",
-                                                     
-                                                     "ffs_beg1_2017",
-                                                     "ffs_beg2_2017",
-                                                     "ffs_beg3_2017",
-                                                     "ffs_beg4_2017",
-                                                     "ffs_end1_2017",
-                                                     "ffs_end2_2017",
-                                                     "ffs_end3_2017",
-                                                     "ffs_end4_2017",
-                                                     
-                                                     "ffs_beg1_2018",
-                                                     "ffs_beg2_2018",
-                                                     "ffs_beg3_2018",
-                                                     "ffs_beg4_2018",
-                                                     "ffs_end1_2018",
-                                                     "ffs_end2_2018",
-                                                     "ffs_end3_2018",
-                                                     "ffs_end4_2018"
-), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
-
-
-monthsEnrolled <- numeric()
-planEnrolled <- character()
-nestedEnrolled <- character()
-for(i in 1:nrow(medata)){
-  x<-medata[i,]
-  df <- data.frame(matrix(t(x),nrow = 32,ncol=2, byrow = T))
-  df$p <- paste0(substr(names(x)[seq(1,64,2)],1,3), "_", rep(1:4,8), "_", c(rep("2015",8),rep("2016",8),rep("2017",8),rep("2018",8)))
-  
-  mco_dat <- df[grep("mco",df$p),]
-  ffs_dat <- df[grep("ffs",df$p),]
-  
-  #case 1: no mco dates; only ffs
-  if(sum(is.na(mco_dat$X1))==16){
-    plan <- "ffs"
-    nestedEnrolled[i] <- "none"
-    ffs_dat <- reduceDates(ffs_dat)
-    me <- floor(as.numeric(sum(as.Date(as.character(ffs_dat$X2))-as.Date(as.character(ffs_dat$X1)))+1)/30)
-  }
-  
-  #case 2: no ffs dates; only mco
-  if(sum(is.na(ffs_dat$X1))==16){
-    plan <- "mco"
-    nestedEnrolled[i] <- "none"
-    mco_dat <- reduceDates(mco_dat)
-    me <- floor(as.numeric(sum(as.Date(as.character(mco_dat$X2))-as.Date(as.character(mco_dat$X1)))+1)/30)
-  }
-  
-  #case 3: both mco and ffs dates 
-  if( (sum(is.na(mco_dat$X1))!=16) & (sum(is.na(ffs_dat$X1))!=16) ){
-    plan <- "both"
-    mco_dat <- reduceDates(mco_dat)
-    ffs_dat <- reduceDates(ffs_dat)
-    
-    #iterate through the matched plan stratum to find overlap between mco and ffs to get months enrolled
-    uniqueIntervals <- unique(c(gsub("mco_","",mco_dat$p),gsub("ffs_","",ffs_dat$p)))
-    me_uniqueInts <- numeric()
-    nestingTypes <- character()
-    for(j in 1:length(uniqueIntervals)){
-      int_mco <- c(as.Date(as.character(mco_dat$X1[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])),
-                   as.Date(as.character(mco_dat$X2[grep(uniqueIntervals[j], gsub("mco_","",mco_dat$p))])))
-      int_ffs <- c(as.Date(as.character(ffs_dat$X1[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])),
-                   as.Date(as.character(ffs_dat$X2[grep(uniqueIntervals[j], gsub("ffs_","",ffs_dat$p))])))
-      
-      nestingTypes[j] <- ifelse((int_mco[1] <= int_ffs[1] & int_mco[2] <= int_ffs[2]), "mco in ffs", "ffs in mco")
-      
-      #case 1:no mco dates among those plan dates
-      if(length(int_mco)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs)+1)/30)))
-      }
-      #case 2:no ffs dates among those plan dates
-      if(length(int_ffs)==0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_mco)+1)/30)))
-      }
-      #case 3:both mco and ffs dates among the plan stratum
-      if(length(int_mco)!=0 & length(int_ffs)!=0){
-        me_uniqueInts <- c(me_uniqueInts, as.numeric(floor((diff(int_ffs) + diff(int_mco) - Overlap(int_mco,int_ffs)+1)/30)))
-      }
-    }
-    me <- sum(me_uniqueInts)
-    nestingTypes <- unique(as.character(na.omit(nestingTypes)))
-    if(length(nestingTypes)==1){
-      nestedEnrolled[i] <- nestingTypes
-    }else{nestedEnrolled[i] <- "mco in ffs AND ffs in mco"}
-  }
-  monthsEnrolled[i]<-me
-  planEnrolled[i] <- plan
-}
-
-summary(monthsEnrolled)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  2.967   8.100  12.167  13.094  17.167  57.533 
-
-length(which(monthsEnrolled<3))
-#6
-
-ffs_mco_2015_2016_2017_2018$months_enrolled <- monthsEnrolled
-ffs_mco_2015_2016_2017_2018$planEnrolled <- planEnrolled
-table(ffs_mco_2015_2016_2017_2018$planEnrolled, exclude = "ifelse")
-# both   ffs   mco 
-#81196 22661   128 
-ffs_mco_2015_2016_2017_2018$nestedEnrolled <- nestedEnrolled
-table(ffs_mco_2015_2016_2017_2018$nestedEnrolled, exclude = "ifany")
-#               ffs in mco                mco in ffs mco in ffs AND ffs in mco                      none 
-#                    35435                     29549                     16212                     22789 
-
-table(ffs_mco_2015_2016_2017_2018$planEnrolled,ffs_mco_2015_2016_2017_2018$nestedEnrolled, exclude = "ifany")
-#       ffs in mco mco in ffs mco in ffs AND ffs in mco  none
-#  both      35435      29549                     16212     0
-#  ffs           0          0                         0 22661
-#  mco           0          0                         0   128
-  
-ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, exclude = "ifany")
-#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
-#         6      12413      15456      20621      55489
-```
--->
-
-<!--
-##Overall
-
-```{r}
-#months enrolled
-medata <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015",
-                                                    "mco_beg2_2015",
-                                                    "mco_beg3_2015",
-                                                    "mco_beg4_2015",
-                                                    "mco_end1_2015",
-                                                    "mco_end2_2015",
-                                                    "mco_end3_2015",
-                                                    "mco_end4_2015",
-                                                    
-                                                    "mco_beg1_2016",
-                                                    "mco_beg2_2016",
-                                                    "mco_beg3_2016",
-                                                    "mco_beg4_2016",
-                                                    "mco_end1_2016",
-                                                    "mco_end2_2016",
-                                                    "mco_end3_2016",
-                                                    "mco_end4_2016",
-                                                    
-                                                    "mco_beg1_2017",
-                                                    "mco_beg2_2017",
-                                                    "mco_beg3_2017",
-                                                    "mco_beg4_2017",
-                                                    "mco_end1_2017",
-                                                    "mco_end2_2017",
-                                                    "mco_end3_2017",
-                                                    "mco_end4_2017",
-                                                    
-                                                    "mco_beg1_2018",
-                                                    "mco_beg2_2018",
-                                                    "mco_beg3_2018",
-                                                    "mco_beg4_2018",
-                                                    "mco_end1_2018",
-                                                    "mco_end2_2018",
-                                                    "mco_end3_2018",
-                                                    "mco_end4_2018"#,
-                                                    #
-                                                    #"ffs_beg1_2015",
-                                                    #"ffs_beg2_2015",
-                                                    #"ffs_beg3_2015",
-                                                    #"ffs_beg4_2015",
-                                                    #"ffs_end1_2015",
-                                                    #"ffs_end2_2015",
-                                                    #"ffs_end3_2015",
-                                                    #"ffs_end4_2015",
-                                                    #
-                                                    #"ffs_beg1_2016",
-                                                    #"ffs_beg2_2016",
-                                                    #"ffs_beg3_2016",
-                                                    #"ffs_beg4_2016",
-                                                    #"ffs_end1_2016",
-                                                    #"ffs_end2_2016",
-                                                    #"ffs_end3_2016",
-                                                    #"ffs_end4_2016",
-                                                    #
-                                                    #"ffs_beg1_2017",
-                                                    #"ffs_beg2_2017",
-                                                    #"ffs_beg3_2017",
-                                                    #"ffs_beg4_2017",
-                                                    #"ffs_end1_2017",
-                                                    #"ffs_end2_2017",
-                                                    #"ffs_end3_2017",
-                                                    #"ffs_end4_2017",
-                                                    #
-                                                    #"ffs_beg1_2018",
-                                                    #"ffs_beg2_2018",
-                                                    #"ffs_beg3_2018",
-                                                    #"ffs_beg4_2018",
-                                                    #"ffs_end1_2018",
-                                                    #"ffs_end2_2018",
-                                                    #"ffs_end3_2018",
-                                                    #"ffs_end4_2018"
-                                                    ), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
-
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 16,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  #df7 <- df6 %>%
-  #  arrange(X1) %>% 
-  #  mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-  #                                cummax(as.numeric(X2)))[-n()])) %>%
-  #  summarise(start = first(X1), end = last(X2))
-  #me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
-}
-
-medata$me <- apply(medata, 1, myfunc)
-
-ffs_mco_2015_2016_2017_2018$months_enrolled <- medata$me
-summary(ffs_mco_2015_2016_2017_2018$months_enrolled)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   1.00    8.00   12.00   13.69   18.00   48.00 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   2.00    8.00   12.00   12.86   17.00   54.00 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   3.000   7.000   7.013  10.000  48.000 
-
-ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled <= 12, "9 - 12 mos", "> 12 mos"))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "> 12 mos"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_cat)
-#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
-#       304      17070      17283      31852      37476 
-#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
-#       433      17374      18012      35890      32276 
-#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos   > 12 mos 
-#     23305      26601      25788      15629      12662 
-       
-ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$months_enrolled_cat=="< 3 mos"),]
-dim(ffs_mco_2015_2016_2017_2018)
-#103460  
-#103681
-#103552 
-#80680   153
-```
+# Calculating months enrolled
 
 ## 2015
 
 ```{r}
-eligibility_2015 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2015==1),]
+medata_2015 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2015",
+                                                          "mco_beg2_2015",
+                                                          "mco_beg3_2015",
+                                                          "mco_beg4_2015",
+                                                          "mco_end1_2015",
+                                                          "mco_end2_2015",
+                                                          "mco_end3_2015",
+                                                          "mco_end4_2015",
+                                                          
+                                                          "ffs_beg1_2015",
+                                                          "ffs_beg2_2015",
+                                                          "ffs_beg3_2015",
+                                                          #"ffs_beg4_2015",
+                                                          "ffs_end1_2015",
+                                                          "ffs_end2_2015",
+                                                          "ffs_end3_2015"#,
+                                                          #"ffs_end4_2015"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
-#months enrolled
-medata_2015 <- eligibility_2015[,grep(paste0(c("mco_beg1_2015",
-                                                    "mco_beg2_2015",
-                                                    "mco_beg3_2015",
-                                                    "mco_beg4_2015",
-                                                    "mco_end1_2015",
-                                                    "mco_end2_2015",
-                                                    "mco_end3_2015",
-                                                    "mco_end4_2015"#,
-                                                    #"ffs_beg1_2015",
-                                                    #"ffs_beg2_2015",
-                                                    #"ffs_beg3_2015",
-                                                    #"ffs_beg4_2015",
-                                                    #"ffs_end1_2015",
-                                                    #"ffs_end2_2015",
-                                                    #"ffs_end3_2015",
-                                                    #"ffs_end4_2015"
-                                               ), collapse = "|"), names(eligibility_2015))]
+medata_2015_list <- list(medata_2015[,1:9],medata_2015[,c(1,10:15)])
 
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  #df7 <- df6 %>%
-  #  arrange(X1) %>% 
-  #  mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-  #                                cummax(as.numeric(X2)))[-n()])) %>%
-  #  summarise(start = first(X1), end = last(X2))
-  #me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
+medata_2015_list[[2]]$ffs_beg4_2015 <- medata_2015_list[[2]]$ffs_end4_2015 <- as.Date(NA)
+
+names(medata_2015_list[[1]])[-1] <- gsub("mco_","",names(medata_2015_list[[1]])[-1])
+names(medata_2015_list[[2]])[-1] <- gsub("ffs_","",names(medata_2015_list[[2]])[-1])
+
+medata_2015_2 <- rbind.data.frame(medata_2015_list[[1]],medata_2015_list[[2]])
+
+medata_2015_3 <- medata_2015_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2015)
+medata_2015_3 <- as.data.frame(medata_2015_3)
+
+ids <- sort(medata_2015_3$srecip[seq(1,length(medata_2015_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2015_3[which(medata_2015_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
 }
-
-medata_2015$me_2015 <- apply(medata_2015, 1, myfunc)
-
-eligibility_2015$months_enrolled_2015 <- medata_2015$me_2015
-summary(eligibility_2015$months_enrolled_2015)
+ffs_mco_2015_2016_2017_2018$me_2015 <- me
+summary(ffs_mco_2015_2016_2017_2018$me_2015)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   5.000   8.000   7.862  11.000  12.000 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   3.000   5.000   5.317   8.000  12.000 
+#  0.000   0.000   0.000   2.590   4.932  12.000 
 
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2015$srecip)] <- eligibility_2015$months_enrolled_2015
-
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2015 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2015 <= 12, "9 - 12 mos", NA))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat)] <- "Not Eligible"
-ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_2015_cat)
-#     < 3 mos    3 - 6 mos    7 - 9 mos   9 - 12 mos Not Eligible 
-#        4651        12677         6984         3363        53005
-
-le3me_srecip_2015 <- eligibility_2015$srecip[which(eligibility_2015$months_enrolled_2015<3)]
-
-#ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2015),]
-dim(ffs_mco_2015_2016_2017_2018)
-#103371 
-#103343
-#80680   155
+ffs_mco_2015_2016_2017_2018$me_2015_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2015 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_2015 >= 3 & ffs_mco_2015_2016_2017_2018$me_2015 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_2015 > 6 & ffs_mco_2015_2016_2017_2018$me_2015 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_2015 > 9 & ffs_mco_2015_2016_2017_2018$me_2015 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_2015_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2015_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_2015_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     73106       8683       9570      12626 
 ```
-
 
 ## 2016
 
 ```{r}
-eligibility_2016 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2016==1),]
+medata_2016 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2016",
+                                                          "mco_beg2_2016",
+                                                          "mco_beg3_2016",
+                                                          "mco_beg4_2016",
+                                                          "mco_end1_2016",
+                                                          "mco_end2_2016",
+                                                          "mco_end3_2016",
+                                                          "mco_end4_2016",
+                                                          
+                                                          "ffs_beg1_2016",
+                                                          "ffs_beg2_2016",
+                                                          "ffs_beg3_2016",
+                                                          #"ffs_beg4_2016",
+                                                          "ffs_end1_2016",
+                                                          "ffs_end2_2016",
+                                                          "ffs_end3_2016"#,
+                                                          #"ffs_end4_2016"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
-#months enrolled
-medata_2016 <- eligibility_2016[,grep(paste0(c("mco_beg1_2016",
-                                                    "mco_beg2_2016",
-                                                    "mco_beg3_2016",
-                                                    "mco_beg4_2016",
-                                                    "mco_end1_2016",
-                                                    "mco_end2_2016",
-                                                    "mco_end3_2016",
-                                                    "mco_end4_2016"#,
-                                                    #"ffs_beg1_2016",
-                                                    #"ffs_beg2_2016",
-                                                    #"ffs_beg3_2016",
-                                                    #"ffs_beg4_2016",
-                                                    #"ffs_end1_2016",
-                                                    #"ffs_end2_2016",
-                                                    #"ffs_end3_2016",
-                                                    #"ffs_end4_2016"
-                                               ), collapse = "|"), names(eligibility_2016))]
+medata_2016_list <- list(medata_2016[,1:9],medata_2016[,c(1,10:15)])
 
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  #df7 <- df6 %>%
-  #  arrange(X1) %>% 
-  #  mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-  #                                cummax(as.numeric(X2)))[-n()])) %>%
-  #  summarise(start = first(X1), end = last(X2))
-  #me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
+medata_2016_list[[2]]$ffs_beg4_2016 <- medata_2016_list[[2]]$ffs_end4_2016 <- as.Date(NA)
+
+names(medata_2016_list[[1]])[-1] <- gsub("mco_","",names(medata_2016_list[[1]])[-1])
+names(medata_2016_list[[2]])[-1] <- gsub("ffs_","",names(medata_2016_list[[2]])[-1])
+
+medata_2016_2 <- rbind.data.frame(medata_2016_list[[1]],medata_2016_list[[2]])
+
+medata_2016_3 <- medata_2016_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2016)
+medata_2016_3 <- as.data.frame(medata_2016_3)
+
+#apply(medata_2016_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2016_3$srecip[seq(1,length(medata_2016_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2016_3[which(medata_2016_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
 }
-
-medata_2016$me_2016 <- apply(medata_2016, 1, myfunc)
-
-eligibility_2016$months_enrolled_2016 <- medata_2016$me_2016
-summary(eligibility_2016$months_enrolled_2016)
+ffs_mco_2015_2016_2017_2018$me_2016 <- me
+summary(ffs_mco_2015_2016_2017_2018$me_2016)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   6.000   9.000   8.523  12.000  12.000 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   3.000   6.000   5.713   8.000  12.000 
+#  0.000   0.000   0.000   3.114   6.970  12.000 
 
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2016$srecip)] <- eligibility_2016$months_enrolled_2016
-
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2016 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2016 <= 12, "9 - 12 mos", NA))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat)] <- "Not Eligible"
-ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_2016_cat)
-#     < 3 mos    3 - 6 mos    7 - 9 mos   9 - 12 mos Not Eligible 
-#        5256        13007         8435         5076        48906 
-        
-le3me_srecip_2016 <- eligibility_2016$srecip[which(eligibility_2016$months_enrolled_2016<3)]
-
-#ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2016),]
-dim(ffs_mco_2015_2016_2017_2018)
-#103309 
-#103216
-#80680   157
+ffs_mco_2015_2016_2017_2018$me_2016_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2016 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_2016 >= 3 & ffs_mco_2015_2016_2017_2018$me_2016 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_2016 > 6 & ffs_mco_2015_2016_2017_2018$me_2016 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_2016 > 9 & ffs_mco_2015_2016_2017_2018$me_2016 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_2016_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2016_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_2016_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     68853       7658       9250      18224 
 ```
-
 
 ## 2017
 
 ```{r}
-eligibility_2017 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2017==1),]
+medata_2017 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2017",
+                                                          "mco_beg2_2017",
+                                                          "mco_beg3_2017",
+                                                          "mco_beg4_2017",
+                                                          "mco_end1_2017",
+                                                          "mco_end2_2017",
+                                                          "mco_end3_2017",
+                                                          "mco_end4_2017",
+                                                          
+                                                          "ffs_beg1_2017",
+                                                          "ffs_beg2_2017",
+                                                          "ffs_beg3_2017",
+                                                          #"ffs_beg4_2017",
+                                                          "ffs_end1_2017",
+                                                          "ffs_end2_2017",
+                                                          "ffs_end3_2017"#,
+                                                          #"ffs_end4_2017"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
-#months enrolled
-medata_2017 <- eligibility_2017[,grep(paste0(c("mco_beg1_2017",
-                                                    "mco_beg2_2017",
-                                                    "mco_beg3_2017",
-                                                    "mco_beg4_2017",
-                                                    "mco_end1_2017",
-                                                    "mco_end2_2017",
-                                                    "mco_end3_2017",
-                                                    "mco_end4_2017"#,
-                                                    #"ffs_beg1_2017",
-                                                    #"ffs_beg2_2017",
-                                                    #"ffs_beg3_2017",
-                                                    #"ffs_beg4_2017",
-                                                    #"ffs_end1_2017",
-                                                    #"ffs_end2_2017",
-                                                    #"ffs_end3_2017",
-                                                    #"ffs_end4_2017"
-                                               ), collapse = "|"), names(eligibility_2017))]
+medata_2017_list <- list(medata_2017[,1:9],medata_2017[,c(1,10:15)])
 
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  #df7 <- df6 %>%
-  #  arrange(X1) %>% 
-  #  mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-  #                                cummax(as.numeric(X2)))[-n()])) %>%
-  #  summarise(start = first(X1), end = last(X2))
-  #me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
+medata_2017_list[[2]]$ffs_beg4_2017 <- medata_2017_list[[2]]$ffs_end4_2017 <- as.Date(NA)
+
+names(medata_2017_list[[1]])[-1] <- gsub("mco_","",names(medata_2017_list[[1]])[-1])
+names(medata_2017_list[[2]])[-1] <- gsub("ffs_","",names(medata_2017_list[[2]])[-1])
+
+medata_2017_2 <- rbind.data.frame(medata_2017_list[[1]],medata_2017_list[[2]])
+
+medata_2017_3 <- medata_2017_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2017)
+medata_2017_3 <- as.data.frame(medata_2017_3)
+
+#apply(medata_2017_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2017_3$srecip[seq(1,length(medata_2017_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2017_3[which(medata_2017_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
 }
-
-medata_2017$me_2017 <- apply(medata_2017, 1, myfunc)
-
-eligibility_2017$months_enrolled_2017 <- medata_2017$me_2017
-summary(eligibility_2017$months_enrolled_2017)
+ffs_mco_2015_2016_2017_2018$me_2017 <- me
+summary(ffs_mco_2015_2016_2017_2018$me_2017)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   6.000   9.000   8.721  12.000  12.000 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   3.000   6.000   5.823   9.000  12.000 
+#  0.000   0.000   0.000   3.232   6.937  12.000 
 
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2017$srecip)] <- eligibility_2017$months_enrolled_2017
-
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2017 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2017 <= 12, "9 - 12 mos", NA))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat)] <- "Not Eligible"
-ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_2017_cat)
-#     < 3 mos    3 - 6 mos    7 - 9 mos   9 - 12 mos Not Eligible 
-#        5662        12403         7592         6419        48604 
-
-le3me_srecip_2017 <- eligibility_2017$srecip[which(eligibility_2017$months_enrolled_2017<3)]
-
-#ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2017),]
-dim(ffs_mco_2015_2016_2017_2018)
-#103227  
-#103164
-#80680   159
+ffs_mco_2015_2016_2017_2018$me_2017_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2017 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_2017 >= 3 & ffs_mco_2015_2016_2017_2018$me_2017 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_2017 > 6 & ffs_mco_2015_2016_2017_2018$me_2017 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_2017 > 9 & ffs_mco_2015_2016_2017_2018$me_2017 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_2017_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2017_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_2017_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     68049       7497       9561      18878 
 ```
-
 
 ## 2018
 
 ```{r}
-eligibility_2018 <- ffs_mco_2015_2016_2017_2018[which(ffs_mco_2015_2016_2017_2018$FY2018==1),]
+medata_2018 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
+                                                          "mco_beg1_2018",
+                                                          "mco_beg2_2018",
+                                                          "mco_beg3_2018",
+                                                          "mco_beg4_2018",
+                                                          "mco_end1_2018",
+                                                          "mco_end2_2018",
+                                                          "mco_end3_2018",
+                                                          "mco_end4_2018",
+                                                          
+                                                          "ffs_beg1_2018",
+                                                          "ffs_beg2_2018",
+                                                          "ffs_beg3_2018",
+                                                          #"ffs_beg4_2018",
+                                                          "ffs_end1_2018",
+                                                          "ffs_end2_2018",
+                                                          "ffs_end3_2018"#,
+                                                          #"ffs_end4_2018"
+), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
 
-#months enrolled
-medata_2018 <- eligibility_2018[,grep(paste0(c("mco_beg1_2018",
-                                                    "mco_beg2_2018",
-                                                    "mco_beg3_2018",
-                                                    "mco_beg4_2018",
-                                                    "mco_end1_2018",
-                                                    "mco_end2_2018",
-                                                    "mco_end3_2018",
-                                                    "mco_end4_2018"#,
-                                                    #"ffs_beg1_2018",
-                                                    #"ffs_beg2_2018",
-                                                    #"ffs_beg3_2018",
-                                                    #"ffs_beg4_2018",
-                                                    #"ffs_end1_2018",
-                                                    #"ffs_end2_2018",
-                                                    #"ffs_end3_2018",
-                                                    #"ffs_end4_2018"
-                                               ), collapse = "|"), names(eligibility_2017))]
+medata_2018_list <- list(medata_2018[,1:9],medata_2018[,c(1,10:15)])
 
-myfunc <- function(x){
-  df <- data.frame(matrix(t(x),nrow = 8,ncol=2, byrow = T))
-  df2 <- df[order(df$X1, decreasing = FALSE),]
-  df3 <- df2[order(df2$X2, decreasing = TRUE),]
-  df4 <- df3[!duplicated(df3$X1),]
-  df5 <- df4[!duplicated(df4$X2),]
-  df6 <- na.omit(df5)
-  #df7 <- df6 %>%
-  #  arrange(X1) %>% 
-  #  mutate(indx = c(0, cumsum(as.numeric(lead(X1)) >
-  #                                cummax(as.numeric(X2)))[-n()])) %>%
-  #  summarise(start = first(X1), end = last(X2))
-  #me <- floor(as.numeric(sum(as.Date(df7$end)-as.Date(df7$start)))/30)
-  me <- floor(as.numeric(sum(as.Date(df6$X2)-as.Date(df6$X1)))/30)
-  return(me)
+medata_2018_list[[2]]$ffs_beg4_2018 <- medata_2018_list[[2]]$ffs_end4_2018 <- as.Date(NA)
+
+names(medata_2018_list[[1]])[-1] <- gsub("mco_","",names(medata_2018_list[[1]])[-1])
+names(medata_2018_list[[2]])[-1] <- gsub("ffs_","",names(medata_2018_list[[2]])[-1])
+
+medata_2018_2 <- rbind.data.frame(medata_2018_list[[1]],medata_2018_list[[2]])
+
+medata_2018_3 <- medata_2018_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1_2018)
+medata_2018_3 <- as.data.frame(medata_2018_3)
+
+#apply(medata_2018_3,2,function(x)table(is.na(x)))
+
+ids <- sort(medata_2018_3$srecip[seq(1,length(medata_2018_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2018_3[which(medata_2018_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
 }
-
-medata_2018$me_2018 <- apply(medata_2018, 1, myfunc)
-
-eligibility_2018$months_enrolled_2018 <- medata_2018$me_2018
-summary(eligibility_2018$months_enrolled_2018)
+ffs_mco_2015_2016_2017_2018$me_2018 <- me
+summary(ffs_mco_2015_2016_2017_2018$me_2018)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   2.00    7.00   10.00    9.13   12.00   12.00 
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#      0       4       7       7      10      12 
+#  0.000   0.000   0.000   3.462   7.923  12.000 
 
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018[which(ffs_mco_2015_2016_2017_2018$srecip %in% eligibility_2018$srecip)] <- eligibility_2018$months_enrolled_2018
-
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- NA
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 < 3, "< 3 mos",
-                                          ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 >= 3 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 6, "3 - 6 mos",
-                                                 ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 > 6 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 9, "7 - 9 mos",
-                                                        ifelse(ffs_mco_2015_2016_2017_2018$months_enrolled_2018 > 9 & ffs_mco_2015_2016_2017_2018$months_enrolled_2018 <= 12, "9 - 12 mos", NA))))
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat[is.na(ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat)] <- "Not Eligible"
-ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat <- factor(ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos", "Not Eligible"))
-table(ffs_mco_2015_2016_2017_2018$months_enrolled_2018_cat)
-#     < 3 mos    3 - 6 mos    7 - 9 mos   9 - 12 mos Not Eligible 
-#        1924        11894         7748         8472        50642 
-
-le3me_srecip_2018 <- eligibility_2018$srecip[which(eligibility_2018$months_enrolled_2018<3)]
-
-#ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[-which(ffs_mco_2015_2016_2017_2018$srecip %in% le3me_srecip_2018),]
-dim(ffs_mco_2015_2016_2017_2018)
-#103204 
-#103153 
-#80680   161
+ffs_mco_2015_2016_2017_2018$me_2018_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2018 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_2018 >= 3 & ffs_mco_2015_2016_2017_2018$me_2018 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_2018 > 6 & ffs_mco_2015_2016_2017_2018$me_2018 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_2018 > 9 & ffs_mco_2015_2016_2017_2018$me_2018 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_2018_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2018_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_2018_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     66885       6629       8625      21846 
 ```
--->
+
+## Overall
+
+```{r}
+ffs_mco_2015_2016_2017_2018$me_overall <- rowSums(cbind(ffs_mco_2015_2016_2017_2018$me_2015,
+                            ffs_mco_2015_2016_2017_2018$me_2016,
+                            ffs_mco_2015_2016_2017_2018$me_2017,
+                            ffs_mco_2015_2016_2017_2018$me_2018))
+summary(ffs_mco_2015_2016_2017_2018$me_overall)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  2.893   7.956  11.967  12.397  15.912  48.000 
+
+ffs_mco_2015_2016_2017_2018$me_overall_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_overall_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_overall < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_overall >= 3 & ffs_mco_2015_2016_2017_2018$me_overall <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_overall > 6 & ffs_mco_2015_2016_2017_2018$me_overall <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_overall > 9 & ffs_mco_2015_2016_2017_2018$me_overall <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_overall_cat <- factor(ffs_mco_2015_2016_2017_2018$me_overall_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_overall_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos       <NA> 
+#      4111      11876      19000      36498      32500 
+```
 
 # Joining with planning districts
 
@@ -2734,6 +2722,7 @@ dim(ffs_mco_2015_2016_2017_2018)
 #103204    158
 #80680   164
 #103985    154
+#103985    164
 ```
 
 

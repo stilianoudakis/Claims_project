@@ -71,6 +71,7 @@ eligibility <- eligibility[, which(names(eligibility) %in% vars)]
 dim(eligibility) 
 #103204     18
 #80680    18
+#103985     12
 ```
 
 # Read in Claims data
@@ -101,11 +102,15 @@ table(mydata$dental_visit)
 #86313 16891 
 #   No   Yes 
 #65341 15339 
+#   No   Yes 
+#86982 17003 
 prop.table(table(mydata$dental_visit))
 #       No       Yes 
 #0.8363339 0.1636661 
 #       No       Yes 
 #0.8098785 0.1901215 
+#      No      Yes 
+#0.836486 0.163514 
 ```
 
 # Creating different dental type variables according to first dental visit
@@ -128,6 +133,7 @@ firstVisit <- as.data.frame(firstVisit)
 dim(firstVisit)
 #16891     4
 #15339     9
+#17003     4
   
 followupVisit <- unique_claims %>%
     dplyr::select(SRECIP, CDT_category, SERVICE_DATE) %>%
@@ -141,9 +147,11 @@ followupVisit$CDT_category <- as.character(followupVisit$CDT_category)
 dim(followupVisit)
 #44700     4
 #40451     5
+#45016     4
 length(unique(followupVisit$SRECIP))
 #16298
 #14809
+#16407
 
 SameDayVisit <- numeric()
 for(i in 1:length(followupVisit$SRECIP)){
@@ -156,9 +164,11 @@ followupVisit2 <- followupVisit[-which(followupVisit$SameDayVisit==0),]
 dim(followupVisit2)
 #39291     5
 #35479     5
+#39571     5
 length(unique(followupVisit2$SRECIP))
 #14481
 #13128
+#14577
 
 
 followupPREVENTIVE <- numeric()
@@ -214,8 +224,17 @@ table(firstVisit$NewDVType)
 #                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
 #                        4802                          154                          663 
 
-prop.table(table(firstVisit$NewDVType))
+#                         ALL                   DIAGNOSTIC                  ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER                 PERIODONTICS 
+#                        2742                         7537                           56                          148                          203                           76 
+#                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
+#                        5345                          170                          726 
 
+prop.table(table(firstVisit$NewDVType))
+#                         ALL                   DIAGNOSTIC                  ENDODONTICS ORAL & MAXILLOFACIAL SURGERY                        OTHER                 PERIODONTICS 
+#                 0.161265659                  0.443274716                  0.003293536                  0.008704346                  0.011939070                  0.004469799 
+#                  PREVENTIVE                  RESTORATIVE                    TREATMENT 
+#                 0.314356290                  0.009998236                  0.042698347 
+                 
 #some categories outside of d,p,t, or a because they had some other service only once
 ```
 
