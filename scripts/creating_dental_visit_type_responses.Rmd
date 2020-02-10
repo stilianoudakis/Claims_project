@@ -117,8 +117,8 @@ prop.table(table(mydata$dental_visit))
 
 ## 1. If preventative then list as preventative
 ## 2. If treatment then list as treatment
-## 3. if diagnostic followed by preventative list as preventative
-## 4. if diagnostic followed by treatment list as treatment
+## 3. if diagnostic and preventative list as preventative
+## 4. if diagnostic and treatment list as treatment
 ## 5. if diagnostic and no other type list as diagnostic
 ## 6. if all happening in one list as all
 
@@ -236,5 +236,76 @@ prop.table(table(firstVisit$NewDVType))
 #                 0.314356290                  0.009998236                  0.042698347 
                  
 #some categories outside of d,p,t, or a because they had some other service only once
+
+
+
+
+
+
+
+
+
+
+
+ids <- unique(unique_claims$SRECIP)
+for(i in 1:length(ids)){
+  
+  srecipData <- unique_claims[which(unique_claims$SRECIP==ids[i]),]
+  
+  srecipData <- srecipData %>%
+    mutate(SERVICE_DATE = mdy(srecipData$SERVICE_DATE),
+           CDT_category=as.character(CDT_category)) %>%
+    arrange(SERVICE_DATE) %>%
+    filter(SERVICE_DATE==min(SERVICE_DATE))
+  
+  table(srecipData$CDT_category)
+}
+
+unique_claims$CDT_category2 <- as.character(unique_claims$CDT_category)
+unique_claims$CDT_category2[which(unique_claims$CDT_category2!="DIAGNOSTIC" & unique_claims$CDT_category2!="PREVENTIVE")] <- "TREATMENT"
+table(unique_claims$CDT_category2, exclude = "ifany")
+
+cdts <- sapply(unique(unique_claims$SRECIP),function(x){
+  srecipData <- unique_claims[which(unique_claims$SRECIP==x),]
+  
+  srecipData <- srecipData %>%
+    mutate(SERVICE_DATE = mdy(srecipData$SERVICE_DATE),
+           CDT_category2=as.character(CDT_category2)) %>%
+    arrange(SERVICE_DATE) %>%
+    filter(SERVICE_DATE==min(SERVICE_DATE))
+  
+  #return(names(table(srecipData$CDT_category2)))
+  n <- names(table(srecipData$CDT_category2))
+  if( length(n)==3 ){
+    return("ALL")
+  }else if(length(n)==2 & ("PREVENTIVE" %in% n) & (!("TREATMENT" %in% n))){
+    return("PREVENTIVE")
+  }else if(length(n)==2 & ("TREATMENT" %in% n) & (!("PREVENTIVE" %in% n))){
+    return("TREATMENT")
+  }else if(length(n)==2 & ("TREATMENT" %in% n) & ("PREVENTIVE" %in% n)){
+    return("PREVENTIVE & TREATMENT")
+  }else if(length(n)==1 & ("DIAGNOSTIC" %in% n)){
+    return("DIAGNOSTIC")
+  }else if(length(n)==1 & ("PREVENTIVE" %in% n)){
+    return("PREVENTIVE")
+  }else if(length(n)==1 & ("TREATMENT" %in% n)){
+    return("TREATMENT")
+  }else{return("UNKNOWN")}
+  
+  
+  }
+  )
+
+table(cdts, exclude = "ifany")
+#ALL             DIAGNOSTIC             PREVENTIVE PREVENTIVE & TREATMENT              TREATMENT 
+#897                   7537                   4409                     39                   4121 
+which(cdts=="PREVENTIVE & TREATMENT")
+
+x <- unique(unique_claims$SRECIP)[1463];srecipData <- unique_claims[which(unique_claims$SRECIP==x),]
+srecipData <- srecipData %>%
+  mutate(SERVICE_DATE = mdy(srecipData$SERVICE_DATE),
+         CDT_category2=as.character(CDT_category2)) %>%
+  arrange(SERVICE_DATE) %>%
+  filter(SERVICE_DATE==min(SERVICE_DATE));n=names(table(srecipData$CDT_category2));srecipData
 ```
 
