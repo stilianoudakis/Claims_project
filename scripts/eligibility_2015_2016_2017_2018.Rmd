@@ -1757,13 +1757,416 @@ summary(ffs_mco_2018$Age_at_earliest_enrollment_2018)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 #  21.00   24.30   27.40   28.31   31.40   55.60 
 
-###Joining eligibility 2015_2016_217 with eligibility 2018
+###Joining eligibility 2015_2016_2017 with eligibility 2018
 ffs_mco_2015_2016_2017_2018 <- full_join(ffs_mco_2015_2016_2017,
                           ffs_mco_2018,
                           by = "srecip")
 
 dim(ffs_mco_2015_2016_2017_2018)
 #103985    141
+```
+
+
+# Read in 2019 Pregnancy Data
+
+## Eligibility
+
+### FFS
+
+```{r}
+ffs2019 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2019_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2019_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(ffs2019)
+#38426   132
+
+#joining fips data
+ffs2019 <- left_join(ffs2019, fipstab, by=c("R_FIPS" = "V1"))
+
+#remove invalid fips
+ffs2019[is.na(ffs2019$V3),"R_FIPS"] #"975" "975" "975" "983" "975"
+ffs2019 <- ffs2019[-which(is.na(ffs2019$V3)),]
+dim(ffs2019)
+#38421   133
+
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(ffs2019$srecip)) #38421
+length(which(is.na(ffs2019$srecip))) #0
+##using CASE_ID
+length(unique(ffs2019$CASE_ID)) #0
+ffs2019$CASE_ID[which(duplicated(ffs2019$CASE_ID))] #
+length(which(is.na(ffs2019$CASE_ID))) #
+
+#investigate repeats in caseid variable
+caseids <- ffs2019$CASE_ID[which(duplicated(ffs2019$CASE_ID))]
+ffs2019[which(ffs2019$CASE_ID %in% caseids), 1:35]
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("ffs_beg",names(ffs2019))) #7
+
+#end dates
+length(grep("ffs_end",names(ffs2019))) #7
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(ffs2019$ffs_beg5)) #
+table(is.na(ffs2019$ffs_beg6)) #
+table(is.na(ffs2019$ffs_beg7)) #
+
+table(is.na(ffs2019$ffs_end5)) #
+table(is.na(ffs2019$ffs_end6)) #
+table(is.na(ffs2019$ffs_end7)) #
+
+#checking if dates are before as.Date("2014-07-01") or after as.Date("2014-07-01")
+sapply(ffs2019[,grep(paste(c("ffs_beg", "ffs_end"),
+                           collapse = "|"), names(ffs2019))], 
+       function(x){length(which((x < as.Date("2017-07-01")) | (x > as.Date("2019-06-30"))))})
+
+```
+
+##### Data Cleaning
+
+```{r}
+#recode demographics
+ffs2019 = ffs2019 %>% 
+  select(srecip, 
+         ffs_beg1, 
+         ffs_beg2, 
+         ffs_beg3, 
+         ffs_beg4, 
+         ffs_end1, 
+         ffs_end2, 
+         ffs_end3, 
+         ffs_end4, 
+         V3, 
+         #BIRTH, 
+         CIT_STAT, 
+         SEX, 
+         RACE) %>%
+  rename(Region_ffs = V3,
+         #BIRTH_ffs = BIRTH,
+         CIT_STAT_ffs = CIT_STAT,
+         SEX_ffs = SEX,
+         RACE_ffs = RACE)
+
+#Date of earliest enrollment
+ffs2019$DOEE_ffs <- apply(ffs2019[,grep("_beg", names(ffs2019))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+#ffs2019$Age_at_earliest_enrollment_ffs <- round(as.numeric((as.Date(ffs2019$DOEE_ffs) - as.Date(ffs2019$BIRTH_ffs))/365.2425),1)
+#summary(ffs2019$Age_at_earliest_enrollment_ffs)
+
+#remove invalid values
+#ffs2019 <- ffs2019[which(ffs2019$Age_at_earliest_enrollment_ffs >= 21 & ffs2019$Age_at_earliest_enrollment_ffs < 100),]
+#summary(ffs2019$Age_at_earliest_enrollment_ffs)
+
+dim(ffs2019)
+#38421    14
+
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(ffs2019$RACE_ffs, exclude = "ifany")
+
+ffs2019$RACE_ffs[ffs2019$RACE_ffs=="1"] <- "White"
+ffs2019$RACE_ffs[ffs2019$RACE_ffs=="2"] <- "Black"
+ffs2019$RACE_ffs[ffs2019$RACE_ffs=="3" | ffs2019$RACE_ffs=="6"] <- "Native American"
+ffs2019$RACE_ffs[ffs2019$RACE_ffs=="4"] <- "Asian"
+ffs2019$RACE_ffs[ffs2019$RACE_ffs=="5"] <- "Hispanic"
+ffs2019$RACE_ffs[ffs2019$RACE_ffs %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+ffs2019$RACE_ffs[which(ffs2019$RACE_ffs=="Native American" | ffs2019$RACE_ffs=="Asian")] <- "Native American/Asian"
+table(ffs2019$RACE_ffs, exclude = "ifany")
+             
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(ffs2019$CIT_STAT_ffs, exclude = "ifany")
+
+ffs2019$CIT_STAT_ffs[!(ffs2019$CIT_STAT_ffs %in% c("C", "N")) & !(is.na(ffs2019$CIT_STAT_ffs))] <- "Non-US citizen"
+ffs2019$CIT_STAT_ffs[ffs2019$CIT_STAT_ffs %in% c("C", "N")] <- "US (or naturalized) citizen"
+ffs2019$CIT_STAT_ffs[is.na(ffs2019$CIT_STAT_ffs)] <- "Missing"
+table(ffs2019$CIT_STAT_ffs, exclude = "ifany")
+
+#sex
+table(ffs2019$SEX_ffs, exclude = "ifany")
+
+#rfips
+table(is.na(ffs2019$R_FIPS_ffs))
+
+#region
+table(ffs2019$Region_ffs, exclude = "ifany")
+
+```
+
+### MCO
+
+```{r}
+mco2019 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data//sfy2019_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2019_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+
+dim(mco2019)
+#7367  141
+
+#joining fips data
+mco2019 <- left_join(mco2019, fipstab, by=c("R_FIPS" = "V1"))
+
+#remove invalid fips
+mco2019[is.na(mco2019$V3),"R_FIPS"] #
+mco2019 <- mco2019[-which(is.na(mco2019$V3)),]
+dim(mco2019)
+#7366  142
+```
+
+#### Data Exploration
+
+##### Number of unique subjects
+
+```{r}
+##using srecip
+length(unique(mco2019$srecip)) #
+length(which(is.na(mco2019$srecip))) #
+
+##using mco_id
+length(grep("mco_id", names(mco2019))) #
+#
+
+##investigating mco_id
+lapply(mco2019[,grep("mco_id", names(mco2019))], function(x){c(length(unique(x)),
+                                                               length(which(duplicated(x))),
+                                                               length(which(is.na(x))))})
+
+```
+
+##### Number of Begin and End dates
+
+```{r}
+#begin dates
+length(grep("mco_beg",names(mco2019))) #
+
+#end dates
+length(grep("mco_end",names(mco2019))) #
+
+#checking missingness in beg5-beg7 and end5-end7
+table(is.na(mco2019$mco_beg5)) #
+table(is.na(mco2019$mco_beg6)) #
+table(is.na(mco2019$mco_beg7)) #
+
+table(is.na(mco2019$mco_end5)) #
+table(is.na(mco2019$mco_end6)) #
+table(is.na(mco2019$mco_end7)) #
+
+sapply(mco2019[,grep(paste(c("mco_beg", "mco_end"),
+                           collapse = "|"), names(mco2019))], 
+       function(x){length(which((x < as.Date("2017-07-01")) | (x > as.Date("2019-06-30"))))})
+```
+
+##### Data Cleaning
+
+```{r}
+#rename specific demo vars names
+mco2019 = mco2019 %>% 
+  select(srecip, 
+         mco_beg1, 
+         mco_beg2, 
+         mco_beg3, 
+         mco_beg4, 
+         mco_end1, 
+         mco_end2, 
+         mco_end3, 
+         mco_end4, 
+         V3, 
+         #BIRTH, 
+         CIT_STAT, 
+         SEX, 
+         RACE) %>%
+  rename(Region_mco = V3,
+         #BIRTH_mco = BIRTH,
+         CIT_STAT_mco = CIT_STAT,
+         SEX_mco = SEX,
+         RACE_mco = RACE)
+
+#Date of earliest enrollment
+mco2019$DOEE_mco <- apply(mco2019[,grep("_beg", names(mco2019))], 1, function(x){min(na.omit(x))})
+
+#Age at earliest enrollment
+#mco2019$Age_at_earliest_enrollment_mco <- round(as.numeric((as.Date(mco2019$DOEE_mco) - as.Date(mco2019$BIRTH_mco))/365.2425),1)
+#summary(mco2019$Age_at_earliest_enrollment)
+
+#remove invalid values
+#mco2019 <- mco2019[which(mco2019$Age_at_earliest_enrollment_mco >= 21 & mco2019$Age_at_earliest_enrollment_mco < 100),]
+#summary(mco2019$Age_at_earliest_enrollment_mco)
+
+dim(mco2019)
+#7366   14
+
+#race
+#1	White	White
+#2	Black/African American	Black
+#3	American Indian/Alaskan Native	Native American
+#4	Oriental/Asian	Asian
+#5	Spanish American/Hispanic	Hispanic
+#6	Native Hawaiian or Pacific Islander	Native American
+#7	Asian and White	Mixed Race
+#8	Black and White	Mixed Race
+#9	Unknown	Other
+#A	Asian and Black	Mixed Race
+#B	Other	Other
+table(mco2019$RACE_mco, exclude = "ifany")
+
+mco2019$RACE_mco[mco2019$RACE_mco=="1"] <- "White"
+mco2019$RACE_mco[mco2019$RACE_mco=="2"] <- "Black"
+mco2019$RACE_mco[mco2019$RACE_mco=="3" | mco2019$RACE_mco=="6"] <- "Native American"
+mco2019$RACE_mco[mco2019$RACE_mco=="4"] <- "Asian"
+mco2019$RACE_mco[mco2019$RACE_mco=="5"] <- "Hispanic"
+mco2019$RACE_mco[mco2019$RACE_mco %in% c("7","8","A","O","B","9","C","D","F","G","J","K","O","S","V")] <- "Other"
+mco2019$RACE_mco[which(mco2019$RACE_mco=="Native American" | mco2019$RACE_mco=="Asian")] <- "Native American/Asian"
+table(mco2019$RACE_mco, exclude = "ifany")
+
+#citizenship status
+#A	Undocumented/Illegal Alien or Legal Alien eligible only for emergency services
+#C	US Citizen
+#D	Undocumented/Illegal Alien or Legal Alien eligible only for dialysis srvcs
+#E	Entrant
+#I	Immigrant Children
+#N	Naturalized US Citizen
+#P	Full-benefit Qualified Alien
+#R	Refugee
+#V	Visitor, Temporary Visa
+table(mco2019$CIT_STAT_mco, exclude = "ifany")
+
+mco2019$CIT_STAT_mco[!(mco2019$CIT_STAT_mco %in% c("C", "N")) & !(is.na(mco2019$CIT_STAT_mco))] <- "Non-US citizen"
+mco2019$CIT_STAT_mco[mco2019$CIT_STAT_mco %in% c("C", "N")] <- "US (or naturalized) citizen"
+mco2019$CIT_STAT_mco[is.na(mco2019$CIT_STAT_mco)] <- "Missing"
+table(mco2019$CIT_STAT_mco, exclude = "ifany")
+
+
+#sex
+table(mco2019$SEX_mco, exclude = "ifany")
+
+#rfips
+table(is.na(mco2019$R_FIPS_mco))
+
+#region
+table(mco2019$Region_mco, exclude = "ifany")
+
+```
+
+### Joining ffs and mco 2019
+
+```{r}
+#total number of patients in common
+length(intersect(ffs2019$srecip, mco2019$srecip)) #7366
+
+
+#ffsvars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "ffs_beg", "ffs_end"), collapse = "|"),names(ffs2019)))
+#mcovars <- c(1,grep(paste(c("BIRTH", "CIT_STAT", "RACE", "mco_beg", "mco_end"), collapse = "|"),names(mco2019)))
+ffs_mco_2019 <- full_join(mco2019,#[,mcovars],
+                          ffs2019,#[,ffsvars],
+                          by = "srecip")
+
+dim(ffs_mco_2019)
+#38421    27
+
+#sort by srecip
+ffs_mco_2019 <- ffs_mco_2019[order(ffs_mco_2019$srecip),]
+
+#Checking demographics between mco and ffs
+table(ffs_mco_2019$CIT_STAT_mco, ffs_mco_2019$CIT_STAT_ffs, exclude="ifany")
+
+table(ffs_mco_2019$RACE_mco, ffs_mco_2019$RACE_ffs, exclude="ifany")
+
+### Creating unified demographic variables
+
+#Region
+ffs_mco_2019$Region_2019 <- NA
+
+ffs_mco_2019$Region_2019[is.na(ffs_mco_2019$Region_mco) & is.na(ffs_mco_2019$Region_ffs)] <- NA
+ffs_mco_2019$Region_2019[is.na(ffs_mco_2019$Region_mco) & !(is.na(ffs_mco_2019$Region_ffs))] <- ffs_mco_2019$Region_ffs[is.na(ffs_mco_2019$Region_mco) & !(is.na(ffs_mco_2019$Region_ffs))]
+ffs_mco_2019$Region_2019[!(is.na(ffs_mco_2019$Region_mco)) & is.na(ffs_mco_2019$Region_ffs)] <- ffs_mco_2019$Region_mco[!(is.na(ffs_mco_2019$Region_mco)) & is.na(ffs_mco_2019$Region_ffs)]
+ffs_mco_2019$Region_2019[!(is.na(ffs_mco_2019$Region_mco)) & !(is.na(ffs_mco_2019$Region_ffs))] <- ffs_mco_2019$Region_mco[!(is.na(ffs_mco_2019$Region_mco)) & !(is.na(ffs_mco_2019$Region_ffs))]
+
+table(ffs_mco_2019$Region_2019, exclude = "ifany")
+
+#Citizenship
+ffs_mco_2019$Citizen_Status_2019 <- NA
+
+ffs_mco_2019$Citizen_Status_2019[is.na(ffs_mco_2019$CIT_STAT_mco) & is.na(ffs_mco_2019$CIT_STAT_ffs)] <- NA
+ffs_mco_2019$Citizen_Status_2019[is.na(ffs_mco_2019$CIT_STAT_mco) & !(is.na(ffs_mco_2019$CIT_STAT_ffs))] <- ffs_mco_2019$CIT_STAT_ffs[is.na(ffs_mco_2019$CIT_STAT_mco) & !(is.na(ffs_mco_2019$CIT_STAT_ffs))]
+ffs_mco_2019$Citizen_Status_2019[!(is.na(ffs_mco_2019$CIT_STAT_mco)) & is.na(ffs_mco_2019$CIT_STAT_ffs)] <- ffs_mco_2019$CIT_STAT_mco[!(is.na(ffs_mco_2019$CIT_STAT_mco)) & is.na(ffs_mco_2019$CIT_STAT_ffs)]
+ffs_mco_2019$Citizen_Status_2019[!(is.na(ffs_mco_2019$CIT_STAT_mco)) & !(is.na(ffs_mco_2019$CIT_STAT_ffs))] <- ffs_mco_2019$CIT_STAT_mco[!(is.na(ffs_mco_2019$CIT_STAT_mco)) & !(is.na(ffs_mco_2019$CIT_STAT_ffs))]
+
+table(ffs_mco_2019$Citizen_Status_2019, exclude = "ifany")
+
+#Race
+ffs_mco_2019$Race_2019 <- NA
+
+ffs_mco_2019$Race_2019[is.na(ffs_mco_2019$RACE_mco) & is.na(ffs_mco_2019$RACE_ffs)] <- NA
+ffs_mco_2019$Race_2019[is.na(ffs_mco_2019$RACE_mco) & !(is.na(ffs_mco_2019$RACE_ffs))] <- ffs_mco_2019$RACE_ffs[is.na(ffs_mco_2019$RACE_mco) & !(is.na(ffs_mco_2019$RACE_ffs))]
+ffs_mco_2019$Race_2019[!(is.na(ffs_mco_2019$RACE_mco)) & is.na(ffs_mco_2019$RACE_ffs)] <- ffs_mco_2019$RACE_mco[!(is.na(ffs_mco_2019$RACE_mco)) & is.na(ffs_mco_2019$RACE_ffs)]
+ffs_mco_2019$Race_2019[!(is.na(ffs_mco_2019$RACE_mco)) & !(is.na(ffs_mco_2019$RACE_ffs))] <- ffs_mco_2019$RACE_mco[!(is.na(ffs_mco_2019$RACE_mco)) & !(is.na(ffs_mco_2019$RACE_ffs))]
+
+table(ffs_mco_2019$Race_2019, exclude = "ifany")
+
+#DOB
+#ffs_mco_2019$DOB_2019 <- as.Date(NA)
+#
+#ffs_mco_2019$DOB_2019[is.na(ffs_mco_2019$BIRTH_mco) & is.na(ffs_mco_2019$BIRTH_ffs)] <- NA
+#ffs_mco_2019$DOB_2019[is.na(ffs_mco_2019$BIRTH_mco) & !(is.na(ffs_mco_2019$BIRTH_ffs))] <- as.Date(ffs_mco_2019$BIRTH_ffs)[is.na(ffs_mco_2019$BIRTH_mco) & !(is.na(ffs_mco_2019$BIRTH_ffs))]
+#ffs_mco_2019$DOB_2019[!(is.na(ffs_mco_2019$BIRTH_mco)) & is.na(ffs_mco_2019$BIRTH_ffs)] <- as.Date(ffs_mco_2019$BIRTH_mco)[!(is.na(ffs_mco_2019$BIRTH_mco)) & is.na(ffs_mco_2019$BIRTH_ffs)]
+#ffs_mco_2019$DOB_2019[!(is.na(ffs_mco_2019$BIRTH_mco)) & !(is.na(ffs_mco_2019$BIRTH_ffs))] <- as.Date(ffs_mco_2019$BIRTH_mco)[!(is.na(ffs_mco_2019$BIRTH_mco)) & !(is.na(ffs_mco_2019$BIRTH_ffs))]
+
+#Age
+#ffs_mco_2019$Age_at_earliest_enrollment_2019 <- NA
+#ffs_mco_2019$Age_at_earliest_enrollment_2019[is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs) & is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco)] <- NA
+#ffs_mco_2019$Age_at_earliest_enrollment_2019[is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco))] <- ffs_mco_2019$Age_at_earliest_enrollment_mco[is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs) & !(is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco))]
+#ffs_mco_2019$Age_at_earliest_enrollment_2019[!(is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco)] <- ffs_mco_2019$Age_at_earliest_enrollment_ffs[!(is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs)) & is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco)]
+#ffs_mco_2019$Age_at_earliest_enrollment_2019[!(is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco))] <- apply(ffs_mco_2019[!(is.na(ffs_mco_2019$Age_at_earliest_enrollment_ffs)) & !(is.na(ffs_mco_2019$Age_at_earliest_enrollment_mco)),c("Age_at_earliest_enrollment_ffs", "Age_at_earliest_enrollment_mco")],1,min)
+
+#summary(ffs_mco_2019$Age_at_earliest_enrollment_2019)
+
+###Joining eligibility 2015_2016_2017_2018 with eligibility 2019
+ffs_mco_2015_2016_2017_2018_2019 <- full_join(ffs_mco_2015_2016_2017_2018,
+                          ffs_mco_2019,
+                          by = "srecip")
+
+dim(ffs_mco_2015_2016_2017_2018_2019)
+#123464    170
 ```
 
 
@@ -1780,151 +2183,151 @@ names(ffs_mco_2015_2016_2017_2018)[grep(".x", names(ffs_mco_2015_2016_2017_2018)
 
 #reorder variables
 dim(ffs_mco_2015_2016_2017_2018)
-#103985    141
+#123464    170
 
-order <- c(1	,
-2	,
-6	,
-3	,
-7	,
-4	,
-8	,
-5	,
-9	,
-10	,
-11	,
-12	,
-13	,
-14	,
-15	,
-16	,
-17	,
-21	,
-18	,
-22	,
-19	,
-23	,
-20	,
-24	,
-25	,
-26	,
-27	,
-28	,
-29	,
-30	,
-31	,
-32	,
-33	,
-34	,
-35	,
-36	,
-37	,
-41	,
-38	,
-42	,
-39	,
-43	,
-40	,
-44	,
-45	,
-46	,
-47	,
-48	,
-49	,
-50	,
-51	,
-52	,
-56	,
-53	,
-57	,
-54	,
-58	,
-55	,
-59	,
-60	,
-61	,
-62	,
-63	,
-64	,
-65	,
-66	,
-67	,
-68	,
-69	,
-70	,
-71	,
-72	,
-76	,
-73	,
-77	,
-74	,
-78	,
-75	,
-79	,
-80	,
-81	,
-82	,
-83	,
-84	,
-85	,
-86	,
-87	,
-91	,
-88	,
-92	,
-89	,
-93	,
-90	,
-94	,
-95	,
-96	,
-97	,
-98	,
-99	,
-100	,
-101	,
-102	,
-103	,
-104	,
-105	,
-106	,
-107	,
-111	,
-108	,
-112	,
-109	,
-113	,
-110 ,
-114	,
-115	,
-116	,
-117	,
-118	,
-119	,
-120	,
-121	,
-122	,
-126	,
-123	,
-127	,
-124	,
-128	,
-125	,
-129	,
-130	,
-131	,
-132	,
-133	,
-134	,
-135	,
-136	,
-137	,
-138	,
-139	,
-140	,
-141)
-ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[, order]
-dim(ffs_mco_2015_2016_2017_2018)
+#order <- c(1	,
+#2	,
+#6	,
+#3	,
+#7	,
+#4	,
+#8	,
+#5	,
+#9	,
+#10	,
+#11	,
+#12	,
+#13	,
+#14	,
+#15	,
+#16	,
+#17	,
+#21	,
+#18	,
+#22	,
+#19	,
+#23	,
+#20	,
+#24	,
+#25	,
+#26	,
+#27	,
+#28	,
+#29	,
+#30	,
+#31	,
+#32	,
+#33	,
+#34	,
+#35	,
+#36	,
+#37	,
+#41	,
+#38	,
+#42	,
+#39	,
+#43	,
+#40	,
+#44	,
+#45	,
+#46	,
+#47	,
+#48	,
+#49	,
+#50	,
+#51	,
+#52	,
+#56	,
+#53	,
+#57	,
+#54	,
+#58	,
+#55	,
+#59	,
+#60	,
+#61	,
+#62	,
+#63	,
+#64	,
+#65	,
+#66	,
+#67	,
+#68	,
+#69	,
+#70	,
+#71	,
+#72	,
+#76	,
+#73	,
+#77	,
+#74	,
+#78	,
+#75	,
+#79	,
+#80	,
+#81	,
+#82	,
+#83	,
+#84	,
+#85	,
+#86	,
+#87	,
+#91	,
+#88	,
+#92	,
+#89	,
+#93	,
+#90	,
+#94	,
+#95	,
+#96	,
+#97	,
+#98	,
+#99	,
+#100	,
+#101	,
+#102	,
+#103	,
+#104	,
+#105	,
+#106	,
+#107	,
+#111	,
+#108	,
+#112	,
+#109	,
+#113	,
+#110 ,
+#114	,
+#115	,
+#116	,
+#117	,
+#118	,
+#119	,
+#120	,
+#121	,
+#122	,
+#126	,
+#123	,
+#127	,
+#124	,
+#128	,
+#125	,
+#129	,
+#130	,
+#131	,
+#132	,
+#133	,
+#134	,
+#135	,
+#136	,
+#137	,
+#138	,
+#139	,
+#140	,
+#141)
+#ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[, order]
+#dim(ffs_mco_2015_2016_2017_2018)
 #103985    141
 ```
 
@@ -1935,39 +2338,39 @@ dim(ffs_mco_2015_2016_2017_2018)
 ffs_mco_2015_2016_2017_2018$Overall_DOB <- apply(ffs_mco_2015_2016_2017_2018[,grep("DOB", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){max(na.omit(x))})
 
 #Race
-ffs_mco_2015_2016_2017_2018$Overall_Race <- apply(ffs_mco_2015_2016_2017_2018[,grep("Race", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+ffs_mco_2015_2016_2017_2018$Overall_Race <- apply(ffs_mco_2015_2016_2017_2018[,grep("Race", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))[1]})
 table(ffs_mco_2015_2016_2017_2018$Overall_Race, exclude = "ifany")
 #                Black              Hispanic Native American/Asian                 Other                 White 
-#                38945                   384                  1304                  6215                 57137 
+#                46092                   401                  1556                  7739                 67676 
 
 #Citizen
 which(apply(ffs_mco_2015_2016_2017_2018[,grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){length(unique(na.omit(x)))})==0)
 #26195 27380 30484 53342
 #integer(0)
 #ffs_mco_2015_2016_2017_2018$Overall_Citizen[-c(26195, 27380, 30484, 53342)] <- apply(ffs_mco_2015_2016_2017_2018[-c(26195, 27380, 30484, 53342),grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
-ffs_mco_2015_2016_2017_2018$Overall_Citizen <- apply(ffs_mco_2015_2016_2017_2018[,grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+ffs_mco_2015_2016_2017_2018$Overall_Citizen <- apply(ffs_mco_2015_2016_2017_2018[,grep("Citizen", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))[1]})
 table(ffs_mco_2015_2016_2017_2018$Overall_Citizen, exclude = "ifany")
 #                    Missing              Non-US citizen US (or naturalized) citizen 
-#                          4                       11407                       92574 
+#                          4                       14204                      109256 
 
 #Date of earliest enrollment
 ffs_mco_2015_2016_2017_2018$Overall_DOEE <- apply(ffs_mco_2015_2016_2017_2018[,grep("DOEE", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){min(na.omit(x))})
 
 #Age at earliest enrollment
-ffs_mco_2015_2016_2017_2018$Overall_Age_at_earliest_enrollment <- apply(ffs_mco_2015_2016_2017_2018[,grep("Age_at_earliest_enrollment", names(ffs_mco_2015_2016_2017_2018))], 1,function(x){min(na.omit(x))})
+ffs_mco_2015_2016_2017_2018$Overall_Age_at_earliest_enrollment <- apply(ffs_mco_2015_2016_2017_2018[,grep("Age_at_earliest_enrollment", names(ffs_mco_2015_2016_2017_2018))], 1,function(x){ifelse(sum(is.na(x))==12, NA, min(na.omit(x)))})
 summary(ffs_mco_2015_2016_2017_2018$Overall_Age_at_earliest_enrollment)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  21.00   23.80   26.90   27.94   31.10   56.20 
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+#  21.00   23.80   26.90   27.93   31.10   56.20   19479 
 
 #Region
-ffs_mco_2015_2016_2017_2018$Overall_Region <- apply(ffs_mco_2015_2016_2017_2018[,grep("Region", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))})
+ffs_mco_2015_2016_2017_2018$Overall_Region <- apply(ffs_mco_2015_2016_2017_2018[,grep("Region", names(ffs_mco_2015_2016_2017_2018))], 1, function(x){unique(na.omit(x))[1]})
 table(ffs_mco_2015_2016_2017_2018$Overall_Region, exclude = "ifany")
 #                CENTRAL CHARLOTTESVILLE WESTERN   NORTHERN & WINCHESTER       ROANOKE/ALLEGHANY               SOUTHWEST               TIDEWATER 
-#                  26039                   12725                   23834                   10452                    5973                   24962 
+#                  30928                   15005                   28749                   12241                    6954                   29587 
 
 
 dim(ffs_mco_2015_2016_2017_2018)
-#103985    147
+#123464    176
 ```
 
 #Create exclusion variables
@@ -1977,25 +2380,34 @@ ffs_mco_2015_2016_2017_2018$FY2015 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip 
 ffs_mco_2015_2016_2017_2018$FY2016 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2016$srecip, 1, 0)
 ffs_mco_2015_2016_2017_2018$FY2017 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2017$srecip, 1, 0)
 ffs_mco_2015_2016_2017_2018$FY2018 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2018$srecip, 1, 0)
+ffs_mco_2015_2016_2017_2018$FY2019 <- ifelse(ffs_mco_2015_2016_2017_2018$srecip %in% ffs_mco_2019$srecip, 1, 0)
 
 dim(ffs_mco_2015_2016_2017_2018)
-#103985    151
+#123464    181
 
 table(ffs_mco_2015_2016_2017_2018$FY2015)
 #    0     1 
-#70001 33984  
+#89480 33984   
 table(ffs_mco_2015_2016_2017_2018$FY2016)
 #    0     1 
-#66130 37855 
+#85609 37855  
 table(ffs_mco_2015_2016_2017_2018$FY2017)
 #    0     1 
-#65547 38438 
+#85026 38438
 table(ffs_mco_2015_2016_2017_2018$FY2018)
 #    0     1 
-#64566 39419 
+#84045 39419
+table(ffs_mco_2015_2016_2017_2018$FY2019)
+#85043 38421
 ```
 
 # Calculating months enrolled
+
+```{r}
+#order ffs_mco_2015_2016_2017_2018 by srecip
+ffs_mco_2015_2016_2017_2018 <- ffs_mco_2015_2016_2017_2018[order(ffs_mco_2015_2016_2017_2018$srecip, decreasing=FALSE),]
+```
+
 
 ## 2015
 
@@ -2019,6 +2431,7 @@ medata_2015 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
                                                           "ffs_end3_2015"#,
                                                           #"ffs_end4_2015"
 ), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+medata_2015 <- medata_2015[,c(1,2,6,3,7,4,8,5,9,10,13,11,14,12,15)]
 
 medata_2015_list <- list(medata_2015[,1:9],medata_2015[,c(1,10:15)])
 
@@ -2128,7 +2541,7 @@ for(i in 1:length(ids)){
 ffs_mco_2015_2016_2017_2018$me_2015 <- me
 summary(ffs_mco_2015_2016_2017_2018$me_2015)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   0.000   0.000   2.590   4.932  12.000 
+#  0.000   0.000   0.000   2.182   3.222  12.000 
 
 ffs_mco_2015_2016_2017_2018$me_2015_cat <- NA
 ffs_mco_2015_2016_2017_2018$me_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2015 < 3, "< 3 mos",
@@ -2138,7 +2551,7 @@ ffs_mco_2015_2016_2017_2018$me_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me
 ffs_mco_2015_2016_2017_2018$me_2015_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2015_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
 table(ffs_mco_2015_2016_2017_2018$me_2015_cat, exclude = "ifany")
 #   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
-#     73106       8683       9570      12626 
+#     92585       8683       9570      12626 
 ```
 
 ## 2016
@@ -2163,6 +2576,7 @@ medata_2016 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
                                                           "ffs_end3_2016"#,
                                                           #"ffs_end4_2016"
 ), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+medata_2016 <- medata_2016[,c(1,2,6,3,7,4,8,5,9,10,13,11,14,12,15)]
 
 medata_2016_list <- list(medata_2016[,1:9],medata_2016[,c(1,10:15)])
 
@@ -2274,7 +2688,7 @@ for(i in 1:length(ids)){
 ffs_mco_2015_2016_2017_2018$me_2016 <- me
 summary(ffs_mco_2015_2016_2017_2018$me_2016)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   0.000   0.000   3.114   6.970  12.000 
+#  0.000   0.000   0.000   2.622   4.964  12.000 
 
 ffs_mco_2015_2016_2017_2018$me_2016_cat <- NA
 ffs_mco_2015_2016_2017_2018$me_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2016 < 3, "< 3 mos",
@@ -2284,7 +2698,7 @@ ffs_mco_2015_2016_2017_2018$me_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me
 ffs_mco_2015_2016_2017_2018$me_2016_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2016_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
 table(ffs_mco_2015_2016_2017_2018$me_2016_cat, exclude = "ifany")
 #   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
-#     68853       7658       9250      18224 
+#     88332       7658       9250      18224 
 ```
 
 ## 2017
@@ -2309,6 +2723,7 @@ medata_2017 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
                                                           "ffs_end3_2017"#,
                                                           #"ffs_end4_2017"
 ), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+medata_2017 <- medata_2017[,c(1,2,6,3,7,4,8,5,9,10,13,11,14,12,15)]
 
 medata_2017_list <- list(medata_2017[,1:9],medata_2017[,c(1,10:15)])
 
@@ -2420,7 +2835,7 @@ for(i in 1:length(ids)){
 ffs_mco_2015_2016_2017_2018$me_2017 <- me
 summary(ffs_mco_2015_2016_2017_2018$me_2017)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   0.000   0.000   3.232   6.937  12.000 
+#  0.000   0.000   0.000   2.722   4.997  12.000  
 
 ffs_mco_2015_2016_2017_2018$me_2017_cat <- NA
 ffs_mco_2015_2016_2017_2018$me_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2017 < 3, "< 3 mos",
@@ -2430,7 +2845,7 @@ ffs_mco_2015_2016_2017_2018$me_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me
 ffs_mco_2015_2016_2017_2018$me_2017_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2017_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
 table(ffs_mco_2015_2016_2017_2018$me_2017_cat, exclude = "ifany")
 #   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
-#     68049       7497       9561      18878 
+#     87528       7497       9561      18878  
 ```
 
 ## 2018
@@ -2455,6 +2870,7 @@ medata_2018 <- ffs_mco_2015_2016_2017_2018[,grep(paste0(c("srecip",
                                                           "ffs_end3_2018"#,
                                                           #"ffs_end4_2018"
 ), collapse = "|"), names(ffs_mco_2015_2016_2017_2018))]
+medata_2018 <- medata_2018[,c(1,2,6,3,7,4,8,5,9,10,13,11,14,12,15)]
 
 medata_2018_list <- list(medata_2018[,1:9],medata_2018[,c(1,10:15)])
 
@@ -2566,7 +2982,7 @@ for(i in 1:length(ids)){
 ffs_mco_2015_2016_2017_2018$me_2018 <- me
 summary(ffs_mco_2015_2016_2017_2018$me_2018)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#  0.000   0.000   0.000   3.462   7.923  12.000 
+#  0.000   0.000   0.000   2.916   5.918  12.000 
 
 ffs_mco_2015_2016_2017_2018$me_2018_cat <- NA
 ffs_mco_2015_2016_2017_2018$me_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2018 < 3, "< 3 mos",
@@ -2575,9 +2991,157 @@ ffs_mco_2015_2016_2017_2018$me_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me
                                                         ifelse(ffs_mco_2015_2016_2017_2018$me_2018 > 9 & ffs_mco_2015_2016_2017_2018$me_2018 <= 12, "9 - 12 mos", NA))))
 ffs_mco_2015_2016_2017_2018$me_2018_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2018_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
 table(ffs_mco_2015_2016_2017_2018$me_2018_cat, exclude = "ifany")
-#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
-#     66885       6629       8625      21846 
+#  < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     86364       6629       8625      21846 
 ```
+
+<!--
+## 2019
+
+```{r}
+medata_2019 <- ffs_mco_2015_2016_2017_2018[,which( names(ffs_mco_2015_2016_2017_2018) %in% c("srecip",
+                                                          "mco_beg1",
+                                                          "mco_beg2",
+                                                          "mco_beg3",
+                                                          "mco_beg4",
+                                                          "mco_end1",
+                                                          "mco_end2",
+                                                          "mco_end3",
+                                                          "mco_end4",
+                                                          
+                                                          "ffs_beg1",
+                                                          "ffs_beg2",
+                                                          "ffs_beg3",
+                                                          #"ffs_beg4",
+                                                          "ffs_end1",
+                                                          "ffs_end2",
+                                                          "ffs_end3"#,
+                                                          #"ffs_end4"
+))]
+medata_2019 <- medata_2019[,c(1,2,6,3,7,4,8,5,9,10,13,11,14,12,15)]
+
+medata_2019_list <- list(medata_2019[,1:9],medata_2019[,c(1,10:15)])
+
+medata_2019_list[[2]]$ffs_beg4 <- medata_2019_list[[2]]$ffs_end4 <- as.Date(NA)
+
+names(medata_2019_list[[1]])[-1] <- gsub("mco_","",names(medata_2019_list[[1]])[-1])
+names(medata_2019_list[[2]])[-1] <- gsub("ffs_","",names(medata_2019_list[[2]])[-1])
+
+medata_2019_2 <- rbind.data.frame(medata_2019_list[[1]],medata_2019_list[[2]])
+
+medata_2019_3 <- medata_2019_2 %>%
+  group_by(srecip) %>%
+  dplyr::arrange(srecip,beg1)
+medata_2019_3 <- as.data.frame(medata_2019_3)
+
+ids <- sort(medata_2019_3$srecip[seq(1,length(medata_2019_3$srecip),2)])
+me <- numeric()
+for(i in 1:length(ids)){
+  
+  srecipData <- medata_2019_3[which(medata_2019_3$srecip==ids[i]),]
+  srecipData_dates <- as.matrix(srecipData[,-1])
+  nummiss <- as.vector(rowSums(is.na(srecipData_dates)))
+  
+  if(nummiss[1]==8 & nummiss[2]==8){
+    me[i] <- 0
+  }else if(nummiss[1]!=8 & nummiss[2]==8){
+    m = matrix(srecipData_dates[1,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else if(nummiss[1]==8 & nummiss[2]!=8){
+    m = matrix(srecipData_dates[2,],nrow = 4, ncol = 2,byrow = T)
+    me[i] <- as.numeric(sum(as.Date(m[,2])-as.Date(m[,1]), na.rm = T))/30.41667
+  }else{
+    n = max(as.vector(rowSums(!is.na(srecipData_dates))))
+    p <- 0
+    q <- 0
+    #r <- 0
+    common_int_list <- list()
+    uncommon_int_list1 <- list()
+    uncommon_int_list2 <- list()
+    for(k in 1:(n/2)){
+      p <- p+1
+      q <- q+1
+      #r <- r+1
+      
+      int1 <- c(srecipData_dates[1,2*k-1],srecipData_dates[1,2*k])
+      int2 <- c(srecipData_dates[2,2*k-1],srecipData_dates[2,2*k])
+      
+      if(int1 %overlaps% int2 & !is.na(int1 %overlaps% int2)){
+        common_int_list[[p]] <- c(min(int1[1],int2[1]), max(int1[2],int2[2]))
+      }else{
+        uncommon_int_list1[[q]] <- int1
+        uncommon_int_list2[[q]] <- int2
+      }
+    }
+    
+    m <- rbind(do.call(rbind,common_int_list),
+               do.call(rbind,uncommon_int_list1),
+               do.call(rbind,uncommon_int_list2))
+    if(sum(is.na(m))>0){m <- m[-which(is.na(m)),]}
+    if(nrow(m)>1){m <- m[order(m[,1], decreasing=FALSE),]}
+    
+    if(TRUE %in% ((as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667) >= 11.9)){
+      me[i] <- 12
+    }else if(nrow(m)==1){
+      me[i] <- (as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)
+    }else if(nrow(m)==2){
+      if(c(m[1,1],m[1,2]) %overlaps% c(m[2,1],m[2,2])){
+        me[i] <- (as.numeric(as.Date(max(m[1,2],m[2,2]))-as.Date(min(m[1,1],m[2,1])))/30.41667)
+      }else{me[i] <- sum(as.numeric(as.Date(m[,2])-as.Date(m[,1]))/30.41667)}
+    }else{
+      h=1
+      int_list_overlaps <- list()
+      int_list_nooverlaps <- list()
+      while(h < nrow(m)){
+        if(h==(nrow(m)-1)){
+          a <- m[-(1:h),]
+          t <- sum(c(m[h,1],m[h,2]) %overlaps% a)
+        }else{
+          a <- lapply(1:nrow(m[-(1:h),]), function(i) m[-(1:h),][i,])
+          #t <- which.max(TRUE %in% unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+          #t <- as.numeric(table(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))[2])
+          t <- sum(unlist(lapply(a,function(x){c(m[h,1],m[h,2]) %overlaps% x})))
+        }
+        if(is.na(t)){
+          int_list_nooverlaps[[h]] <- c(m[h,1],m[h,2])
+          h <- h+1
+        }else{
+          int_list_overlaps[[h]] <- c(min(m[h,1],m[h+t,1]), max(m[h,2],m[h+t,2]))
+          h <- h+t+1
+        }
+      }
+      g1 <- do.call(rbind,Filter(Negate(is.null), int_list_overlaps))
+      g2 <- do.call(rbind,Filter(Negate(is.null), int_list_nooverlaps))
+      if(is.null(g2)){
+        me[i] <- sum(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667)
+      }else if(is.null(g1)){
+        me[i] <- sum(as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667)
+      }else{
+        me[i] <- sum(c(as.numeric(as.Date(g1[,2])-as.Date(g1[,1]))/30.41667,
+                       as.numeric(as.Date(g2[,2])-as.Date(g2[,1]))/30.41667))
+      }
+    }
+  }
+  
+  
+}
+ffs_mco_2015_2016_2017_2018$me_2019 <- me
+summary(ffs_mco_2015_2016_2017_2018$me_2019)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   0.000   0.000   2.867   5.918  12.000 
+
+
+ffs_mco_2015_2016_2017_2018$me_2019_cat <- NA
+ffs_mco_2015_2016_2017_2018$me_2019_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_2019 < 3, "< 3 mos",
+                                          ifelse(ffs_mco_2015_2016_2017_2018$me_2019 >= 3 & ffs_mco_2015_2016_2017_2018$me_2019 <= 6, "3 - 6 mos",
+                                                 ifelse(ffs_mco_2015_2016_2017_2018$me_2019 > 6 & ffs_mco_2015_2016_2017_2018$me_2019 <= 9, "7 - 9 mos",
+                                                        ifelse(ffs_mco_2015_2016_2017_2018$me_2019 > 9 & ffs_mco_2015_2016_2017_2018$me_2019 <= 12, "9 - 12 mos", NA))))
+ffs_mco_2015_2016_2017_2018$me_2019_cat <- factor(ffs_mco_2015_2016_2017_2018$me_2019_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "9 - 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$me_2019_cat, exclude = "ifany")
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos 
+#     87235       6221       8278      21730 
+```
+-->
 
 ## Overall
 
@@ -2585,10 +3149,14 @@ table(ffs_mco_2015_2016_2017_2018$me_2018_cat, exclude = "ifany")
 ffs_mco_2015_2016_2017_2018$me_overall <- rowSums(cbind(ffs_mco_2015_2016_2017_2018$me_2015,
                             ffs_mco_2015_2016_2017_2018$me_2016,
                             ffs_mco_2015_2016_2017_2018$me_2017,
-                            ffs_mco_2015_2016_2017_2018$me_2018))
+                            ffs_mco_2015_2016_2017_2018$me_2018#,
+                            #ffs_mco_2015_2016_2017_2018$me_2019
+                            ))
 summary(ffs_mco_2015_2016_2017_2018$me_overall)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 #  2.893   7.956  11.967  12.397  15.912  48.000 
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  2.893   7.989  11.967  13.308  17.852  59.934 
 
 ffs_mco_2015_2016_2017_2018$me_overall_cat <- NA
 ffs_mco_2015_2016_2017_2018$me_overall_cat <- ifelse(ffs_mco_2015_2016_2017_2018$me_overall < 3, "< 3 mos",
@@ -2599,7 +3167,153 @@ ffs_mco_2015_2016_2017_2018$me_overall_cat <- factor(ffs_mco_2015_2016_2017_2018
 table(ffs_mco_2015_2016_2017_2018$me_overall_cat, exclude = "ifany")
 #   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos       <NA> 
 #      4111      11876      19000      36498      32500 
+#   < 3 mos  3 - 6 mos  7 - 9 mos 9 - 12 mos       <NA> 
+#      4585      12953      20989      40592      44345 
 ```
+
+# Calculating Policy Maturation
+
+## 2015
+
+```{r}
+DOEE_2015 <- suppressWarnings(apply(ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2015","ffs_beg1_2015"),collapse = "|"), names(ffs_mco_2015_2016_2017_2018))],1,function(x){min(na.omit(x))}))
+#DOEE_2015 <- as.Date(DOEE_2015)
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2015 <- floor(as.numeric((as.Date(DOEE_2015)-as.Date("2015-03-01"))/30))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2015[which(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015<0 | is.na(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015))] <- 0
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.00000 0.00000 0.00000 0.01518 0.00000 1.00000 
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2015_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2015<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2015<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2015<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2015_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_2015_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#     103985           0           0           0           0 
+
+
+```
+
+## 2016
+
+```{r}
+DOEE_2016 <- suppressWarnings(apply(ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2016","ffs_beg1_2016"),collapse = "|"), names(ffs_mco_2015_2016_2017_2018))],1,function(x){min(na.omit(x))}))
+#DOEE_2016 <- as.Date(DOEE_2016)
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2016 <- floor(as.numeric((as.Date(DOEE_2016)-as.Date("2015-03-01"))/30))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2016[which(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016<0 | is.na(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016))] <- 0
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   0.000   0.000   2.136   4.000  13.000 
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2016_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2016<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2016<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2016<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2016_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_2016_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#      66130       26709        5189        4579        1378 
+
+
+```
+
+## 2017
+
+```{r}
+DOEE_2017 <- suppressWarnings(apply(ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2017","ffs_beg1_2017"),collapse = "|"), names(ffs_mco_2015_2016_2017_2018))],1,function(x){min(na.omit(x))}))
+#DOEE_2017 <- as.Date(DOEE_2017)
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2017 <- floor(as.numeric((as.Date(DOEE_2017)-as.Date("2015-03-01"))/30))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2017[which(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017<0 | is.na(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017))] <- 0
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   0.000   0.000   6.556  16.000  25.000 
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2017_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2017<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2017<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2017<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2017_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_2017_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#      65547           0           0           0       38438 
+
+
+```
+
+## 2018
+
+```{r}
+DOEE_2018 <- suppressWarnings(apply(ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2018","ffs_beg1_2018"),collapse = "|"), names(ffs_mco_2015_2016_2017_2018))],1,function(x){min(na.omit(x))}))
+#DOEE_2018 <- as.Date(DOEE_2018)
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2018 <- floor(as.numeric((as.Date(DOEE_2018)-as.Date("2015-03-01"))/30))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2018[which(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018<0 | is.na(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018))] <- 0
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   0.00    0.00    0.00   11.18   28.00   37.00 
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2018_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2018<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2018<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2018<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2018_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_2018_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#      64566           0           0           0       39419 
+
+
+```
+
+
+<!--
+## 2019
+
+```{r}
+DOEE_2019 <- apply(ffs_mco_2015_2016_2017_2018[,grep(paste0(c("mco_beg1_2019","ffs_beg1_2019"),collapse = "|"), names(ffs_mco_2015_2016_2017_2018))],1,function(x){min(na.omit(x))})
+#DOEE_2019 <- as.Date(DOEE_2019)
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2019 <- floor(as.numeric((as.Date(DOEE_2019)-as.Date("2015-03-01"))/30))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2019[which(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019<0 | is.na(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019))] <- 0
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.000   0.000   0.000   2.136   4.000  13.000 
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2019_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2019<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2019<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_2019<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_2019_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_2019_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#      66130       26709        5189        4579        1378 
+
+
+```
+-->
+
+##Overall
+
+```{r}
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_overall <- suppressWarnings(apply(ffs_mco_2015_2016_2017_2018[,names(ffs_mco_2015_2016_2017_2018) %in% 
+                                                                                                               c("policymaturation.E_2015",
+                                                                                                                 "policymaturation.E_2016",
+                                                                                                                 "policymaturation.E_2017",
+                                                                                                                 "policymaturation.E_2018"#,
+                                                                                                                 #"policymaturation.E_2019"
+                                                                                                                 )],
+                                                                                 1,
+                                                                                 function(x){ifelse(sum(x)==0,0,min(x[x!=0]))}))
+summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall)
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   0.00    4.00   10.00   13.11   23.00   37.00 
+```
+
 
 # Joining with planning districts
 
@@ -2637,6 +3351,14 @@ ffs2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro
                     detectDates = TRUE)
 ffs2018 <- ffs2018[,names(ffs2018) %in% c("srecip", "R_FIPS")]
 names(ffs2018)[2] <- "R_FIPS_ffs2018"
+ffs2019 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2019_ffs_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2019_ffs_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+ffs2019 <- ffs2019[,names(ffs2019) %in% c("srecip", "R_FIPS")]
+names(ffs2019)[2] <- "R_FIPS_ffs2019"
 mco2015 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2015_mco_preg_ge21yo_90day.xlsx",
                     sheet = "sfy2015_mco_preg_ge21yo_90day",
                     startRow = 1,
@@ -2669,16 +3391,26 @@ mco2018 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro
                     detectDates = TRUE)
 mco2018 <- mco2018[,names(mco2018) %in% c("srecip", "R_FIPS")]
 names(mco2018)[2] <- "R_FIPS_mco2018"
+mco2019 <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/sfy2019_mco_preg_ge21yo_90day.xlsx",
+                    sheet = "sfy2019_mco_preg_ge21yo_90day",
+                    startRow = 1,
+                    colNames = TRUE,
+                    na.strings = "",
+                    detectDates = TRUE)
+mco2019 <- mco2019[,names(mco2019) %in% c("srecip", "R_FIPS")]
+names(mco2019)[2] <- "R_FIPS_mco2019"
 
 all_dfs <- plyr::join_all(list(ffs2015,
                          ffs2016,
                          ffs2017,
                          ffs2018,
+                         ffs2019,
                          mco2015,
                          mco2016,
                          mco2017,
-                         mco2018), by='srecip', type='full')
-all_dfs$Overall_R_FIPS <- apply(all_dfs[,-1], 1, function(x){unique(na.omit(x))})
+                         mco2018,
+                         mco2019), by='srecip', type='full')
+all_dfs$Overall_R_FIPS <- apply(all_dfs[,-1], 1, function(x){unique(na.omit(x))[1]})
 
 planning_districts <- read.xlsx("X:/CommonPrograms/Oral Health Services Research Core/Spiro/Claims_Project/data/planning_districts.xlsx",
                     sheet = "planning_districts",
@@ -2692,7 +3424,7 @@ planning_districts$FIPS[which(nchar(planning_districts$FIPS)==2)] <- paste0("0",
 
 all_dfs <- dplyr::left_join(all_dfs, planning_districts, by=c("Overall_R_FIPS"="FIPS"))
 
-ffs_mco_2015_2016_2017_2018 <- dplyr::left_join(ffs_mco_2015_2016_2017_2018, all_dfs[,c(1,10,13,14)], by="srecip")
+ffs_mco_2015_2016_2017_2018 <- dplyr::left_join(ffs_mco_2015_2016_2017_2018, all_dfs[,c(1,12,15,16)], by="srecip")
 
 ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT <- factor(ffs_mco_2015_2016_2017_2018$HEALTH_PLANNING_DISTRICT,
                                                                levels = c("HPD 1",
@@ -2723,6 +3455,9 @@ dim(ffs_mco_2015_2016_2017_2018)
 #80680   164
 #103985    154
 #103985    164
+#123464    196
+#123464    199
+#103985    174
 ```
 
 
