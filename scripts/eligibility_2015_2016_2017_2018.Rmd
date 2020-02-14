@@ -3312,6 +3312,16 @@ ffs_mco_2015_2016_2017_2018$policymaturation.E_overall <- suppressWarnings(apply
 summary(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall)
 #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 #   0.00    4.00   10.00   13.11   23.00   37.00 
+
+
+ffs_mco_2015_2016_2017_2018$policymaturation.E_overall_cat <- ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall<3, "< 3 mos",
+                                        ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall>=3 & ffs_mco_2015_2016_2017_2018$policymaturation.E_overall<=6, "3 - 6 mos",
+                                               ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall>6 & ffs_mco_2015_2016_2017_2018$policymaturation.E_overall<=9, "7 - 9 mos", 
+                                                      ifelse(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall>9 & ffs_mco_2015_2016_2017_2018$policymaturation.E_overall<=12, "10 - 12 mos", "> 12 mos"))))
+ffs_mco_2015_2016_2017_2018$policymaturation.E_overall_cat <- factor(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall_cat, levels=c("< 3 mos", "3 - 6 mos", "7 - 9 mos", "10 - 12 mos", "> 12 mos"))
+table(ffs_mco_2015_2016_2017_2018$policymaturation.E_overall_cat, exclude = "ifany")
+#    < 3 mos   3 - 6 mos   7 - 9 mos 10 - 12 mos    > 12 mos 
+#      20160       25407        5189        4576       48653 
 ```
 
 
@@ -3457,7 +3467,7 @@ dim(ffs_mco_2015_2016_2017_2018)
 #103985    164
 #123464    196
 #123464    199
-#103985    174
+#103985    175
 ```
 
 
