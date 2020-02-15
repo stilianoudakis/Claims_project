@@ -32,7 +32,9 @@ library(car)
 library(ResourceSelection)
 library(pscl)
 library(countreg)
-library("lmtest")
+library(lmtest)
+library(coin)
+library(rcompanion)
 ```
 
 # Set working directory
@@ -1083,6 +1085,39 @@ names(table4) <- c("Service",
 ```{r}
 table(mydatafinal$firstDayVisitType, exclude = "ifany")
 prop.table(table(mydatafinal$firstDayVisitType, exclude = "ifany"))
+```
+
+# Creating Figures
+
+## Fig 3
+
+```{r}
+d <- mydata_final[which(mydata_final$dental_visit=="Yes"),c("Preventive", "Diagnostic", "Restorative", "Periodontics", "Endodontics", "Oral_and_maxillofacial_surgery", "Other", "FY2015", "FY2016", "FY2017", "FY2018")]
+
+
+service_list <- list()
+s <- c("Preventive", "Diagnostic", "Restorative", "Periodontics", "Endodontics", "Oral_and_maxillofacial_surgery", "Other")
+y <- c("FY2015", "FY2016", "FY2017", "FY2018")
+for(i in 1:length(s)){
+  
+  mat <- matrix(ncol=4,nrow=2)
+  
+  for(j in 1:length(y)){
+    mat[1,j] <- table(mydata_final[,names(mydata_final) %in% s[i]][which(mydata_final[,names(mydata_final) %in% y[j]]=="Yes")])[1]
+    mat[2,j] <- table(mydata_final[,names(mydata_final) %in% s[i]][which(mydata_final[,names(mydata_final) %in% y[j]]=="Yes")])[2]
+  }  
+  colnames(mat) <- c("FY2015", "FY2016", "FY2017", "FY2018")
+  rownames(mat) <- c("No", "Yes")
+  
+  service_list[[i]] <- mat
+ 
+}
+
+names(service_list) <- s
+
+lapply(service_list, function(x){chisq_test(as.table(x))})
+
+lapply(service_list, function(x){pairwiseOrdinalIndependence(as.table(x), compare="column",method="bonferroni")})
 ```
 
 
